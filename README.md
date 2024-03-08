@@ -4,4 +4,4 @@
 
 ## author - yula, telegramm - @imaginativemurder
 
-`its programming language than writing in C++`
+## its programming language than writing in C++
