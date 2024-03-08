@@ -1,0 +1,5 @@
+*.bat
+input.yula
+*.asm
+*.o
+*.exe
