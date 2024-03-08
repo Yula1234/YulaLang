@@ -29,6 +29,11 @@ enum class TokenType {
     land,
     ttrue,
     ffalse,
+    cast_bool,
+    cast_int,
+    malloc,
+    store8,
+    load8,
 };
 
 inline std::string to_string(const TokenType type)
@@ -80,6 +85,10 @@ inline std::string to_string(const TokenType type)
         return "`false`";
     case TokenType::ttrue:
         return "`true`";
+    case TokenType::cast_int:
+        return "`cast(int)`";
+    case TokenType::cast_bool:
+        return "`cast(bool)`";
     }
     assert(false);
 }
@@ -105,6 +114,20 @@ struct Token {
 
 #define START_COL 1
 
+bool is_valid_id(char c) {
+    switch(c) {
+    case '(':
+        return true;
+    case ')':
+        return true;
+    case '!':
+        return true;
+    case '@':
+        return true;
+    }
+    return false;
+}
+
 class Lexer {
 private:
     int m_col = START_COL;
@@ -120,9 +143,9 @@ public:
         std::string buf;
         int line_count = 1;
         while (peek().has_value()) {
-            if (std::isalpha(peek().value())) {
+            if (std::isalpha(peek().value()) || is_valid_id(peek().value())) {
                 buf.push_back(consume());
-                while (peek().has_value() && std::isalnum(peek().value())) {
+                while (peek().has_value() && std::isalnum(peek().value()) || ( peek().has_value() && is_valid_id(peek().value()))) {
                     buf.push_back(consume());
                 }
                 if(buf == "print") {
@@ -181,8 +204,20 @@ public:
                     tokens.push_back({ .type = TokenType::ffalse, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
+                else if(buf == "false") {
+                    tokens.push_back({ .type = TokenType::ffalse, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "cast(bool)") {
+                    tokens.push_back({ .type = TokenType::cast_bool, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "cast(int)") {
+                    tokens.push_back({ .type = TokenType::cast_int, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
                 else {
-                    tokens.push_back({ .type = TokenType::ident, .line = line_count, .col = m_col - (int)buf.size() });
+                    tokens.push_back({ .type = TokenType::ident, .line = line_count, .col = m_col - (int)buf.size(), .value = buf });
                     buf.clear();
                 }
             }
