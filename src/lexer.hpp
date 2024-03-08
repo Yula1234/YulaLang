@@ -34,6 +34,8 @@ enum class TokenType {
     malloc,
     store8,
     load8,
+    free,
+    cast_ptr,
 };
 
 inline std::string to_string(const TokenType type)
@@ -89,6 +91,16 @@ inline std::string to_string(const TokenType type)
         return "`cast(int)`";
     case TokenType::cast_bool:
         return "`cast(bool)`";
+    case TokenType::cast_ptr:
+        return "`cast(ptr)`";
+    case TokenType::malloc:
+        return "`malloc`";
+    case TokenType::store8:
+        return "`!8`";
+    case TokenType::load8:
+        return "`@8`";
+    case TokenType::free:
+        return "`free`";
     }
     assert(false);
 }
@@ -214,6 +226,26 @@ public:
                 }
                 else if(buf == "cast(int)") {
                     tokens.push_back({ .type = TokenType::cast_int, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "cast(ptr)") {
+                    tokens.push_back({ .type = TokenType::cast_ptr, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "malloc") {
+                    tokens.push_back({ .type = TokenType::malloc, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "free") {
+                    tokens.push_back({ .type = TokenType::free, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "!8") {
+                    tokens.push_back({ .type = TokenType::store8, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "@8") {
+                    tokens.push_back({ .type = TokenType::load8, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
                 else {

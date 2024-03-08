@@ -96,6 +96,21 @@ public:
 				case TokenType::cast_bool:
 					opsl->push_back(new OP(OP_TYPE::CAST_BOOL, m_tokens[i]));
 					break;
+				case TokenType::cast_ptr:
+					opsl->push_back(new OP(OP_TYPE::CAST_PTR, m_tokens[i]));
+					break;
+				case TokenType::malloc:
+					opsl->push_back(new OP(OP_TYPE::OP_MALLOC, m_tokens[i]));
+					break;
+				case TokenType::free:
+					opsl->push_back(new OP(OP_TYPE::OP_FREE, m_tokens[i]));
+					break;
+				case TokenType::load8:
+					opsl->push_back(new OP(OP_TYPE::OP_LOAD8, m_tokens[i]));
+					break;
+				case TokenType::store8:
+					opsl->push_back(new OP(OP_TYPE::OP_STORE8, m_tokens[i]));
+					break;
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}

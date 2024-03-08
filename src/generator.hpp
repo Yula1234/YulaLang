@@ -14,16 +14,17 @@
 enum class DataType {
 	_int,
 	_bool,
+	ptr,
 };
 
 std::string dt_tostr(DataType dt) {
 	switch(dt) {
 		case DataType::_int:
 			return "INT";
-			break;
 		case DataType::_bool:
 			return "BOOL";
-			break;
+		case DataType::ptr:
+			return "PTR";
 	}
 	assert(false);
 	return "";
@@ -59,19 +60,26 @@ bool typecheck(DataStack& ds, int length, ...) {
 	va_list args;
 	va_start(args, length);
 	int ip = ds.size();
+	std::vector<DataType> extypes;
 	for(int i = 0;i < length;++i) {
-		if(ds[--ip].type != va_arg(args, DataType)) {
+		extypes.push_back(va_arg(args, DataType));
+	}
+	for(int i = extypes.size() - 1;i > -1;--i) {
+		DataType cur = extypes[i];
+		if(ds[--ip].type != cur) {
 			return false;
 		}
 	}
-	return true;
 	va_end(args);
+	return true;
 }
 
 
 const std::vector<const char*> std_externs = {
 	"ExitProcess@4",
-	"printf"
+	"printf",
+	"malloc",
+	"free"
 };
 
 
@@ -297,6 +305,41 @@ void typecheck_program(ops_list* ops) {
 				last_scope(scopes).push_back({ .type = DataType::_bool });
 				ops->erase(ops->begin() + ip--);
 				break;
+			case OP_TYPE::CAST_PTR:
+				if(last_scope(scopes).size() < 1) {
+					TypeError(last_scope(scopes), ip, ops, "cast(ptr) excepts 1 element, but got: ");
+				}
+				last_scope(scopes).pop_back();
+				last_scope(scopes).push_back({ .type = DataType::ptr });
+				ops->erase(ops->begin() + ip--);
+				break;
+			case OP_TYPE::OP_MALLOC:
+				if(!typecheck(last_scope(scopes), 1, DataType::_int)) {
+					TypeError(last_scope(scopes), ip, ops, "malloc excepts types [INT], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				last_scope(scopes).push_back({ .type = DataType::ptr });
+				break;
+			case OP_TYPE::OP_FREE:
+				if(!typecheck(last_scope(scopes), 1, DataType::ptr)) {
+					TypeError(last_scope(scopes), ip, ops, "free excepts types [PTR], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				break;
+			case OP_TYPE::OP_STORE8:
+				if(!typecheck(last_scope(scopes), 2, DataType::ptr, DataType::_int)) {
+					TypeError(last_scope(scopes), ip, ops, "!8 excepts types [PTR, INT], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				last_scope(scopes).pop_back();
+				break;
+			case OP_TYPE::OP_LOAD8:
+				if(!typecheck(last_scope(scopes), 1, DataType::ptr)) {
+					TypeError(last_scope(scopes), ip, ops, "@8 excepts types [PTR], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				last_scope(scopes).push_back({ .type = DataType::_int });
+				break;
 		}
 	}
 }
@@ -476,6 +519,30 @@ public:
 		m_new_addr(ip);
 		m_output << "    push 0\n";
 	}
+	void m_gen_malloc(int ip) {
+		m_new_addr(ip);
+		m_output << "    call malloc\n";
+		m_output << "    add esp, 4\n";
+		m_output << "    push eax\n";
+	}
+	void m_gen_free(int ip) {
+		m_new_addr(ip);
+		m_output << "    call free\n";
+		m_output << "    add esp, 4\n";
+	}
+	void m_gen_store8(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    pop edx\n";
+		m_output << "    mov byte [edx], cl\n";
+	}
+	void m_gen_load8(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    xor ebx, ebx\n";
+		m_output << "    mov bl, byte [ecx]\n";
+		m_output << "    push ebx\n";
+	}
 	std::string generate() {
 		m_output << "section .text\n\n";
 		for(int i = 0;i < std_externs.size();++i) {
@@ -553,6 +620,18 @@ public:
 					break;
 				case OP_TYPE::OP_FALSE:
 					m_gen_false(ip);
+					break;
+				case OP_TYPE::OP_MALLOC:
+					m_gen_malloc(ip);
+					break;
+				case OP_TYPE::OP_FREE:
+					m_gen_free(ip);
+					break;
+				case OP_TYPE::OP_STORE8:
+					m_gen_store8(ip);
+					break;
+				case OP_TYPE::OP_LOAD8:
+					m_gen_load8(ip);
 					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);

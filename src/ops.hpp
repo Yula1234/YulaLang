@@ -30,6 +30,13 @@ enum class OP_TYPE {
 	OP_AND,
 	OP_FALSE,
 	OP_TRUE,
+	CAST_INT,
+	CAST_BOOL,
+	CAST_PTR,
+	OP_MALLOC,
+	OP_FREE,
+	OP_LOAD8,
+	OP_STORE8,
 };
 
 std::string op_to_string(OP_TYPE opt) {
@@ -78,14 +85,24 @@ std::string op_to_string(OP_TYPE opt) {
 		return "OP_FALSE";
 	case OP_TYPE::OP_TRUE:
 		return "OP_TRUE";
+	case OP_TYPE::CAST_INT:
+		return "CAST_INT";
+	case OP_TYPE::CAST_BOOL:
+		return "CAST_BOOL";
+	case OP_TYPE::CAST_PTR:
+		return "CAST_PTR";
+	case OP_TYPE::OP_MALLOC:
+		return "OP_MALLOC";
+	case OP_TYPE::OP_FREE:
+		return "OP_FREE";
+	case OP_TYPE::OP_LOAD8:
+		return "OP_LOAD8";
+	case OP_TYPE::OP_STORE8:
+		return "OP_STORE8";
 	}
 	assert(false);
 	return "";
 }
-
-class YULA_TYPE {
-	int Integer = 0;
-};
 
 struct OP {
 	int operand1 = 0;
