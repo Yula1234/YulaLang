@@ -281,6 +281,22 @@ void typecheck_program(ops_list* ops) {
 				}
 				last_scope(scopes).pop_back();
 				break;
+			case OP_TYPE::CAST_INT:
+				if(last_scope(scopes).size() < 1) {
+					TypeError(last_scope(scopes), ip, ops, "cast(int) excepts 1 element, but got: ");
+				}
+				last_scope(scopes).pop_back();
+				last_scope(scopes).push_back({ .type = DataType::_int });
+				ops->erase(ops->begin() + ip--);
+				break;
+			case OP_TYPE::CAST_BOOL:
+				if(last_scope(scopes).size() < 1) {
+					TypeError(last_scope(scopes), ip, ops, "cast(bool) excepts 1 element, but got: ");
+				}
+				last_scope(scopes).pop_back();
+				last_scope(scopes).push_back({ .type = DataType::_bool });
+				ops->erase(ops->begin() + ip--);
+				break;
 		}
 	}
 }
