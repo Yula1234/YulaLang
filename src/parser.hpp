@@ -90,6 +90,12 @@ public:
 				case TokenType::ffalse:
 					opsl->push_back(new OP(OP_TYPE::OP_FALSE, m_tokens[i]));
 					break;
+				case TokenType::cast_int:
+					opsl->push_back(new OP(OP_TYPE::CAST_INT, m_tokens[i]));
+					break;
+				case TokenType::cast_bool:
+					opsl->push_back(new OP(OP_TYPE::CAST_BOOL, m_tokens[i]));
+					break;
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}
