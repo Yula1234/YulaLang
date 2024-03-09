@@ -1,0 +1,13 @@
+macro stdout 1 end
+
+macro fputs
+	// excepts string on the stack
+	// [int:string size, ptr:string data, int:file descriptor]
+	write drop
+end
+
+macro puts
+	// excepts string on the stack
+	// [int:string size, ptr:string data]
+	stdout fputs
+end
