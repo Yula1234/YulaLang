@@ -9,6 +9,7 @@
 
 enum class OP_TYPE {
 	PUSH_INT,
+	PUSH_STR,
 	INTR_PRINT,
 	OPER_ADD,
 	OPER_SUB,
@@ -45,6 +46,7 @@ enum class OP_TYPE {
 	OP_SWAP,
 	OP_OVER,
 	OP_DUMP,
+	OP_WRITE,
 };
 
 std::string op_to_string(OP_TYPE opt) {
@@ -123,6 +125,10 @@ std::string op_to_string(OP_TYPE opt) {
 		return "OP_SWAP";
 	case OP_TYPE::OP_DUMP:
 		return "OP_DUMP";
+	case OP_TYPE::PUSH_STR:
+		return "PUSH_STR";
+	case OP_TYPE::OP_WRITE:
+		return "OP_WRITE";
 	}
 	assert(false);
 	return "";

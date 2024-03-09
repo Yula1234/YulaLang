@@ -26,8 +26,8 @@ int main(int argc, const char** argv) {
     }
     Lexer lexer(contents);
     std::vector<Token> tokens = lexer.lex();
-    Parser parser(tokens);
-    ops_list* opsl = parser.parse();
+    Parser parser;
+    ops_list* opsl = parser.parse(tokens);
     crossref_check_blocks(opsl);
     typecheck_program(opsl);
     Generator generator(opsl);

@@ -44,15 +44,21 @@ enum class TokenType {
     swap,
     over,
     dump,
+    string_lit,
+    write,
+    macro,
+    iinclude,
 };
 
-inline std::string to_string(const TokenType type)
+std::string tok_to_string(const TokenType type)
 {
     switch (type) {
     case TokenType::int_lit:
-        return "int literal";
+        return "`number`";
+    case TokenType::string_lit:
+        return "`string`";
     case TokenType::ident:
-        return "identifier";
+        return "`identifier`";
     case TokenType::plus:
         return "`+`";
     case TokenType::star:
@@ -123,6 +129,12 @@ inline std::string to_string(const TokenType type)
         return "`swap`";
     case TokenType::over:
         return "`over`";
+    case TokenType::write:
+        return "`write`";
+    case TokenType::macro:
+        return "`macro`";
+    case TokenType::iinclude:
+        return "`include`";
     }
     assert(false);
 }
@@ -133,7 +145,7 @@ struct Token {
     int col;
     std::optional<std::string> value {};
     friend std::ostream& operator<<(std::ostream& out, const Token& tok) {
-        out << "Token(.type = " << to_string(tok.type);
+        out << "Token(.type = " << tok_to_string(tok.type);
         out << ", .line = " << tok.line;
         out << ", .col = " << tok.col;
         if(tok.value.has_value()) {
@@ -282,6 +294,18 @@ public:
                     tokens.push_back({ .type = TokenType::dump, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
+                else if(buf == "write") {
+                    tokens.push_back({ .type = TokenType::write, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "macro") {
+                    tokens.push_back({ .type = TokenType::macro, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "include") {
+                    tokens.push_back({ .type = TokenType::iinclude, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
                 else {
                     tokens.push_back({ .type = TokenType::ident, .line = line_count, .col = m_col - (int)buf.size(), .value = buf });
                     buf.clear();
@@ -329,6 +353,24 @@ public:
             else if (peek().value() == '>') {
                 consume();
                 tokens.push_back({ .type = TokenType::right_arrow, .line = line_count , .col = m_col -1 });
+            }
+            else if(peek().value() == '"') {
+                consume();
+                buf.clear();
+                while(peek().has_value() && peek().value() != '"') {
+                    buf.push_back(consume());
+                }
+                consume();
+                for(int i = 0;i < (int)buf.size();++i) {
+                    if(buf[i] == '\\') {
+                        if(buf[i+1] == 'n') {
+                            buf.erase(buf.begin()+i);
+                            buf[i] = '\n';
+                        }
+                    }
+                }
+                tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - (int)buf.size(), .value = buf });
+                buf.clear();
             }
             else if (peek().value() == '-') {
                 consume();

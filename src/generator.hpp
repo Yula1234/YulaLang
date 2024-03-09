@@ -79,7 +79,8 @@ const std::vector<const char*> std_externs = {
 	"ExitProcess@4",
 	"printf",
 	"malloc",
-	"free"
+	"free",
+	"write"
 };
 
 
@@ -466,15 +467,16 @@ void typecheck_program(ops_list* ops) {
 			}
 			case OP_TYPE::OP_SWAP:
 			{
-				if(last_scope(scopes).size() < 2) {
-					TypeError(last_scope(scopes), ip, ops, "swap excepts 2 elements, but got: ");
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 2) {
+					TypeError(ds, ip, ops, "swap excepts 2 elements, but got: ");
 				}
-				DataElement last = last_scope(scopes)[last_scope(scopes).size() - 2];
-				DataElement cur = last_scope(scopes)[last_scope(scopes).size() - 1];
-				last_scope(scopes).pop_back();
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back(cur);
-				last_scope(scopes).push_back(last);
+				DataElement last = ds[ds.size() - 2];
+				DataElement cur = ds[ds.size() - 1];
+				ds.pop_back();
+				ds.pop_back();
+				ds.push_back(cur);
+				ds.push_back(last);
 				break;
 			}
 			case OP_TYPE::OP_DUMP:
@@ -486,14 +488,51 @@ void typecheck_program(ops_list* ops) {
 				exit(0);
 				break;
 			}
+			case OP_TYPE::PUSH_STR:
+			{
+				DataStack& ds = last_scope(scopes);
+				ds.push_back({ .type = DataType::_int });
+				ds.push_back({ .type = DataType::ptr });
+				break;
+			}
+			case OP_TYPE::OP_WRITE:
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 3, DataType::_int, DataType::ptr, DataType::_int)) {
+					TypeError(ds, ip, ops, "write excepts types [INT, PTR, INT], but got: ");
+				}
+				ds.pop_back();
+				ds.pop_back();
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
+				break;
+			}
 		}
 	}
 }
 
+std::string string_to_hex(const std::string& input)
+{
+    static const char hex_digits[] = "0123456789ABCDEF";
+    std::string output;
+    output.reserve(input.length() * 2);
+    for (unsigned char c : input)
+    {
+        output.push_back(hex_digits[c >> 4]);
+        output.push_back(hex_digits[c & 15]);
+    }
+    return output;
+}
+
 class Generator {
 private:
+	struct String {
+		int index;
+		std::string data;
+	};
 	ops_list* m_ops;
 	std::stringstream m_output;
+	std::vector<String> m_strings;
 public:
 	explicit Generator(ops_list* _ops) {
 		m_ops = _ops;
@@ -733,6 +772,35 @@ public:
 		m_output << "    push eax\n";
 		m_output << "    push ebx\n";
 	}
+	void m_gen_write(int ip) {
+		m_new_addr(ip);
+		m_output << "    call write\n";
+		m_output << "    add esp, 12\n";
+		m_output << "    push eax\n";
+	}
+	void m_gen_push_str(int ip) {
+		m_new_addr(ip);
+		OP cur = m_at(ip);
+		std::string svalue = cur.tok.value.value();
+		String it = {0};
+		bool finded = false;
+		for(int i = 0;i < (int)m_strings.size();++i) {
+			if(svalue == m_strings[i].data) {
+				it = m_strings[i];
+				finded = true;
+				break;
+			}
+		}
+		if(not finded) {
+			int index = (int)m_strings.size();
+			m_strings.push_back({ .index = (int)m_strings.size() , .data = svalue });
+			m_output << "    push " << svalue.length() << "\n";
+			m_output << "    push str_" << index << "\n";
+			return;
+		}
+		m_output << "    push " << it.data.length() << "\n";
+		m_output << "    push str_" << it.index << "\n";
+	}
 	std::string generate() {
 		m_output << "section .text\n\n";
 		for(int i = 0;i < std_externs.size();++i) {
@@ -844,12 +912,29 @@ public:
 				case OP_TYPE::OP_OVER:
 					m_gen_over(ip);
 					break;
+				case OP_TYPE::PUSH_STR:
+					m_gen_push_str(ip);
+					break;
+				case OP_TYPE::OP_WRITE:
+					m_gen_write(ip);
+					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);
 			}
 		}
 		m_output << "\nsection .data\n";
 		m_output << "    numfmt: db \"%d\", 10, 0\n";
+		for(int i = 0;i < (int)m_strings.size();++i) {
+			String& cur_s = m_strings[i];
+			m_output << "    str_" << cur_s.index << ": db ";
+			for(int j = 0;j < cur_s.data.length();++j) {
+				m_output << "0x" << std::hex << (int)cur_s.data[j];
+				if(j != ((int)cur_s.data.length() - 1)) {
+					m_output << ", ";
+				}
+			}
+			m_output << "\n";
+		}
 		return m_output.str();
 	}
 };

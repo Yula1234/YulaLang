@@ -1,6 +1,7 @@
 #pragma once
 
 #include<iostream>
+#include<fstream>
 #include<string>
 #include<vector>
 
@@ -9,17 +10,21 @@
 
 class Parser {
 private:
-	token_list m_tokens;
+	struct Macro {
+		int line;
+		int col;
+		std::string name;
+		token_list _tokens;
+	};
+	std::vector<Macro> macroses;
 public:
-	explicit Parser(const token_list _tokens) {
-		m_tokens = _tokens;
-	}
 	void ParsingError(Token tok, const char* err) {
 		std::cout << "Parsing Error at " << tok.line;
 		std::cout << "." << tok.col << ": " << err;
 		exit(1);
 	}
-	ops_list* parse() {
+	ops_list* parse(token_list toks) {
+		token_list& m_tokens = toks;
 		ops_list* opsl = new std::vector<OP*>();
 		int size = m_tokens.size();
 		for(int i = 0;i < size;++i) {
@@ -135,6 +140,81 @@ public:
 				case TokenType::dump:
 					opsl->push_back(new OP(OP_TYPE::OP_DUMP, m_tokens[i]));
 					break;
+				case TokenType::string_lit:
+					opsl->push_back(new OP(OP_TYPE::PUSH_STR, m_tokens[i]));
+					break;
+				case TokenType::write:
+					opsl->push_back(new OP(OP_TYPE::OP_WRITE, m_tokens[i]));
+					break;
+				case TokenType::macro:
+				{
+					if(i + 1 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at macro definition except macro name but got nothing"); 
+					}
+					if(m_tokens[i + 1].type != TokenType::ident) {
+						ParsingError(m_tokens[i+1], ("at macro definition except macro name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
+					}
+					Macro macro = { .line = m_tokens[i].line, .col = m_tokens[i].col , .name = m_tokens[i+1].value.value() };
+					std::vector<Token> bstack;
+					i += 2;
+					while(m_tokens[i].type != TokenType::end || bstack.size() != 0) {
+						switch(m_tokens[i].type) {
+						case TokenType::_if: case TokenType::wwhile:
+							bstack.push_back(m_tokens[i]);
+							break;
+						case TokenType::end:
+							if(bstack.size() == 0) {
+								ParsingError(m_tokens[i], "invalid end");
+							}
+							bstack.pop_back();
+						}
+						macro._tokens.push_back(m_tokens[i++]);
+					}
+					macroses.push_back(macro);
+					break;
+				}
+				case TokenType::ident: 
+				{
+					Macro macro;
+					bool finded = false;
+					std::string cname = m_tokens[i].value.value();
+					for(int i = 0;i < macroses.size();++i) {
+						if(cname == macroses[i].name) {
+							finded = true;
+							macro = macroses[i];
+							break;
+						}
+					}
+					if(!finded) {
+						ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
+					}
+					ops_list* compiled_macro = parse(macro._tokens);
+					opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
+					break;
+				}
+				case TokenType::iinclude:
+				{
+					if(i + 1 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at include except string file name but got nothing"); 
+					}
+					if(m_tokens[i + 1].type != TokenType::string_lit) {
+						ParsingError(m_tokens[i+1], ("at include except string file name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
+					}
+					std::string fname = m_tokens[++i].value.value();
+					std::string contents;
+    				{
+       	 				std::stringstream contents_stream;
+       					std::fstream input(fname, std::ios::in);
+    	   				contents_stream << input.rdbuf();
+    			    	contents = contents_stream.str();
+    	    			input.close();
+    				}
+    				Lexer nlexer(contents);
+    				token_list ntokens = nlexer.lex();
+    				ops_list* compiled_macro = parse(ntokens);
+					opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
+					break;
+				}
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}
