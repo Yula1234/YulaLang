@@ -119,6 +119,18 @@ public:
 				case TokenType::store8:
 					opsl->push_back(new OP(OP_TYPE::OP_STORE8, m_tokens[i]));
 					break;
+				case TokenType::load16:
+					opsl->push_back(new OP(OP_TYPE::OP_LOAD16, m_tokens[i]));
+					break;
+				case TokenType::store16:
+					opsl->push_back(new OP(OP_TYPE::OP_STORE16, m_tokens[i]));
+					break;
+				case TokenType::load32:
+					opsl->push_back(new OP(OP_TYPE::OP_LOAD32, m_tokens[i]));
+					break;
+				case TokenType::store32:
+					opsl->push_back(new OP(OP_TYPE::OP_STORE32, m_tokens[i]));
+					break;
 				case TokenType::dup2:
 					opsl->push_back(new OP(OP_TYPE::OP_2DUP, m_tokens[i]));
 					break;

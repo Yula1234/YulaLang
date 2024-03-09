@@ -38,6 +38,10 @@ enum class OP_TYPE {
 	OP_FREE,
 	OP_LOAD8,
 	OP_STORE8,
+	OP_LOAD16,
+	OP_STORE16,
+	OP_LOAD32,
+	OP_STORE32,
 	OP_2DUP,
 	OP_BOR,
 	OP_BAND,
@@ -109,6 +113,14 @@ std::string op_to_string(OP_TYPE opt) {
 		return "OP_LOAD8";
 	case OP_TYPE::OP_STORE8:
 		return "OP_STORE8";
+	case OP_TYPE::OP_LOAD16:
+		return "OP_LOAD16";
+	case OP_TYPE::OP_STORE16:
+		return "OP_STORE16";
+	case OP_TYPE::OP_LOAD32:
+		return "OP_LOAD32";
+	case OP_TYPE::OP_STORE32:
+		return "OP_STORE32";
 	case OP_TYPE::OP_2DUP:
 		return "OP_2DUP";
 	case OP_TYPE::OP_BOR:

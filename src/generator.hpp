@@ -446,6 +446,46 @@ void typecheck_program(ops_list* ops) {
 				ds.push_back({ .type = DataType::_int });
 				break;
 			}
+			case OP_TYPE::OP_STORE16:
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::ptr, DataType::_int)) {
+					TypeError(ds, ip, ops, "!16 excepts types [PTR, INT], but got: ");
+				}
+				ds.pop_back();
+				ds.pop_back();
+				break;
+			}
+			case OP_TYPE::OP_LOAD16:
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::ptr)) {
+					TypeError(ds, ip, ops, "@16 excepts types [PTR], but got: ");
+				}
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
+				break;
+			}
+			case OP_TYPE::OP_STORE32:
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::ptr, DataType::_int)) {
+					TypeError(ds, ip, ops, "!32 excepts types [PTR, INT], but got: ");
+				}
+				ds.pop_back();
+				ds.pop_back();
+				break;
+			}
+			case OP_TYPE::OP_LOAD32:
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::ptr)) {
+					TypeError(ds, ip, ops, "@32 excepts types [PTR], but got: ");
+				}
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
+				break;
+			}
 			case OP_TYPE::OP_2DUP:
 			{
 				DataStack& ds = last_scope(scopes);
@@ -677,7 +717,7 @@ public:
 	void m_gen_2dup(int ip) {
 		m_new_addr(ip);
 		m_output << "    push dword [esp]\n";
-		m_output << "    push dword [esp]\n";
+		m_output << "    push dword [esp+8]\n";
 	}
 	void m_gen_do(int ip) {
 		m_new_addr(ip);
@@ -759,6 +799,32 @@ public:
 		m_output << "    pop ecx\n";
 		m_output << "    xor ebx, ebx\n";
 		m_output << "    mov bl, byte [ecx]\n";
+		m_output << "    push ebx\n";
+	}
+	void m_gen_store16(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    pop edx\n";
+		m_output << "    mov word [edx], cx\n";
+	}
+	void m_gen_load16(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    xor ebx, ebx\n";
+		m_output << "    mov bx, word [ecx]\n";
+		m_output << "    push ebx\n";
+	}
+	void m_gen_store32(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    pop edx\n";
+		m_output << "    mov dword [edx], ecx\n";
+	}
+	void m_gen_load32(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    xor ebx, ebx\n";
+		m_output << "    mov ebx, dword [ecx]\n";
 		m_output << "    push ebx\n";
 	}
 	void m_gen_over(int ip) {
@@ -890,6 +956,18 @@ public:
 					break;
 				case OP_TYPE::OP_LOAD8:
 					m_gen_load8(ip);
+					break;
+				case OP_TYPE::OP_STORE16:
+					m_gen_store16(ip);
+					break;
+				case OP_TYPE::OP_LOAD16:
+					m_gen_load16(ip);
+					break;
+				case OP_TYPE::OP_STORE32:
+					m_gen_store32(ip);
+					break;
+				case OP_TYPE::OP_LOAD32:
+					m_gen_load32(ip);
 					break;
 				case OP_TYPE::OP_2DUP:
 					m_gen_2dup(ip);

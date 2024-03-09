@@ -48,6 +48,10 @@ enum class TokenType {
     write,
     macro,
     iinclude,
+    store16,
+    load16,
+    store32,
+    load32,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -113,6 +117,14 @@ std::string tok_to_string(const TokenType type)
         return "`!8`";
     case TokenType::load8:
         return "`@8`";
+    case TokenType::store16:
+        return "`!16`";
+    case TokenType::load16:
+        return "`@16`";
+    case TokenType::store32:
+        return "`!32`";
+    case TokenType::load32:
+        return "`@32`";
     case TokenType::free:
         return "`free`";
     case TokenType::dup2:
@@ -276,6 +288,22 @@ public:
                 }
                 else if(buf == "@8") {
                     tokens.push_back({ .type = TokenType::load8, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "!16") {
+                    tokens.push_back({ .type = TokenType::store16, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "@16") {
+                    tokens.push_back({ .type = TokenType::load16, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "!32") {
+                    tokens.push_back({ .type = TokenType::store32, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "@32") {
+                    tokens.push_back({ .type = TokenType::load32, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
                 else if(buf == "dup2") {
