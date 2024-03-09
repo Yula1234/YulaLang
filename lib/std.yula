@@ -1,13 +1,57 @@
+macro stdin 0 end
 macro stdout 1 end
+macro stderr 2 end
+
+macro EXIT_SUCCESS 0 end
+macro EXIT_FAILURE 1 end
+
+macro strlen
+	// str i (str-1)
+	dup
+	0 swap while dup @8 0 = not do
+		1 +
+		swap
+		1 +
+		swap
+	end
+	drop swap drop 1 -
+end
 
 macro fputs
 	// excepts string on the stack
-	// [int:string size, ptr:string data, int:file descriptor]
-	write drop
+	// [ptr:string data, int:file descriptor]
+	// fd len data fd
+	swap dup strlen dup 0 = if
+		1 +
+	end
+	swap over write drop drop
 end
 
 macro puts
 	// excepts string on the stack
-	// [int:string size, ptr:string data]
+	// [ptr:string data]
 	stdout fputs
 end
+
+macro endl "\n" end
+
+macro malloc4 4 malloc end
+
+macro malloc2 2 malloc end
+
+macro malloc1 1 malloc end
+
+macro todo!
+	"TODO\n" puts
+	EXIT_FAILURE exit
+end
+
+macro sizeof(int)  4 end
+macro sizeof(bool) 4 end
+macro sizeof(ptr)  4 end
+
+macro str$
+	dup strlen swap
+end
+
+macro puti print endl puts end
