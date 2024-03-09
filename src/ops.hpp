@@ -51,6 +51,8 @@ enum class OP_TYPE {
 	OP_OVER,
 	OP_DUMP,
 	OP_WRITE,
+	OP_MOD,
+	OP_MEM,
 };
 
 std::string op_to_string(OP_TYPE opt) {
@@ -141,6 +143,10 @@ std::string op_to_string(OP_TYPE opt) {
 		return "PUSH_STR";
 	case OP_TYPE::OP_WRITE:
 		return "OP_WRITE";
+	case OP_TYPE::OP_MOD:
+		return "OP_MOD";
+	case OP_TYPE::OP_MEM:
+		return "OP_MEM";
 	}
 	assert(false);
 	return "";

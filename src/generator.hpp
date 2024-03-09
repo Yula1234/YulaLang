@@ -36,6 +36,9 @@ struct DataElement {
         out << "<" << dt_tostr(de.type) << ">";
         return out;
     }
+    friend bool operator==(const DataElement one, const DataElement two) {
+        return one.type == two.type;
+    }
 };
 
 #define DataStack std::vector<DataElement>
@@ -201,7 +204,7 @@ void typecheck_program(ops_list* ops) {
 			case OP_TYPE::OPER_ADD:
 			{
 				DataStack& ds = last_scope(scopes);
-				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int) && !typecheck(ds, 2, DataType::ptr, DataType::_int)) {
 					TypeError(ds, ip, ops, "+ excepts types [INT, INT], but got: ");
 				}
 				ds.pop_back();
@@ -210,7 +213,7 @@ void typecheck_program(ops_list* ops) {
 			case OP_TYPE::OPER_SUB:
 			{
 				DataStack& ds = last_scope(scopes);
-				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int) && !typecheck(ds, 2, DataType::ptr, DataType::_int)) {
 					TypeError(ds, ip, ops, "- excepts types [INT, INT], but got: ");
 				}
 				ds.pop_back();
@@ -219,7 +222,7 @@ void typecheck_program(ops_list* ops) {
 			case OP_TYPE::OPER_MUL:
 			{
 				DataStack& ds = last_scope(scopes);
-				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int) && !typecheck(ds, 2, DataType::ptr, DataType::_int)) {
 					TypeError(ds, ip, ops, "* excepts types [INT, INT], but got: ");
 				}
 				ds.pop_back();
@@ -234,10 +237,19 @@ void typecheck_program(ops_list* ops) {
 				ds.pop_back();
 				break;
 			}
-			case OP_TYPE::OP_BOR:
+			case OP_TYPE::OP_MOD:
 			{
 				DataStack& ds = last_scope(scopes);
 				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "% excepts types [INT, INT], but got: ");
+				}
+				ds.pop_back();
+				break;
+			}
+			case OP_TYPE::OP_BOR:
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int) && !typecheck(ds, 2, DataType::ptr, DataType::_int)) {
 					TypeError(ds, ip, ops, "| excepts types [INT, INT], but got: ");
 				}
 				ds.pop_back();
@@ -270,6 +282,44 @@ void typecheck_program(ops_list* ops) {
 				ds.pop_back();
 				break;
 			}
+			case OP_TYPE::OP_END:
+			{
+				if(scopes.size() == 3) {
+					DataStack& elseds = last_scope(scopes);
+					scopes.pop_back();
+					DataStack& ifds = last_scope(scopes);
+					scopes.pop_back();
+					if(ifds.size() != elseds.size()) {
+						std::cout << "if else branches have difficult types at the end.\n";
+						std::cout << "if branch: ";
+						show_sdata(ifds);
+						std::cout << "else branch: ";
+						show_sdata(elseds);
+						exit(1);
+					}
+					for(int i = 0;i < ifds.size();++i) {
+						if(ifds[i].type != elseds[i].type) {
+							std::cout << "if else branches have difficult types at the end.\n";
+							std::cout << "if branch: ";
+							show_sdata(ifds);
+							std::cout << "else branch: ";
+							show_sdata(elseds);
+							exit(1);
+						}
+					}
+					DataStack& main_ds = last_scope(scopes);
+					main_ds.insert(main_ds.end(), elseds.begin(), elseds.end());
+				}
+				break;
+			}
+			case OP_TYPE::OP_ELSE:
+			{
+				DataStack& lds = *(scopes[scopes.size() - 2]);
+				scopes.push_back(new DataStack);
+				DataStack& ds = last_scope(scopes);
+				ds.assign(lds.begin(), lds.end());
+				break;
+			}
 			case OP_TYPE::OP_IF:
 			{
 				DataStack& ds = last_scope(scopes);
@@ -277,6 +327,9 @@ void typecheck_program(ops_list* ops) {
 					TypeError(ds, ip, ops, "if excepts types [BOOL], but got: ");
 				}
 				ds.pop_back();
+				scopes.push_back(new DataStack);
+				DataStack& ds2 = last_scope(scopes);
+				ds2.assign(ds.begin(), ds.end());
 				break;
 			}
 			case OP_TYPE::OP_EXIT:
@@ -531,7 +584,6 @@ void typecheck_program(ops_list* ops) {
 			case OP_TYPE::PUSH_STR:
 			{
 				DataStack& ds = last_scope(scopes);
-				ds.push_back({ .type = DataType::_int });
 				ds.push_back({ .type = DataType::ptr });
 				break;
 			}
@@ -547,7 +599,17 @@ void typecheck_program(ops_list* ops) {
 				ds.push_back({ .type = DataType::_int });
 				break;
 			}
+			case OP_TYPE::OP_MEM:
+			{
+				last_scope(scopes).push_back({ .type = DataType::ptr });
+				break;
+			}
 		}
+	}
+	DataStack& ds = last_scope(scopes);
+	if(ds.size() > 1) {
+		std::cout << "at end of the program except INT, but got unhandled data: ";
+		show_sdata(ds);
 	}
 }
 
@@ -652,9 +714,18 @@ public:
 		m_output << "    mov edx, 0\n";
 		m_output << "    pop ebx\n";
 		m_output << "    pop eax\n";
-		m_output << "    imul eax, ebx\n";
+		m_output << "    div ebx\n";
 		m_output << "    push eax\n";
 		m_output << "    mov edx, ecx\n";
+	}
+	void m_gen_mod(int ip) {
+		m_new_addr(ip);
+		m_output << "    mov edx, 0\n";
+		m_output << "    pop ebx\n";
+		m_output << "    pop eax\n";
+		m_output << "    div ebx\n";
+		m_output << "    push edx\n";
+
 	}
 	void m_gen_eq(int ip) {
 		m_new_addr(ip);
@@ -844,6 +915,12 @@ public:
 		m_output << "    add esp, 12\n";
 		m_output << "    push eax\n";
 	}
+	void m_gen_mem(int ip) {
+		m_new_addr(ip);
+		m_output << "    mov ecx, mem\n";
+		m_output << "    add ecx, " << m_at(ip).operand1 << "\n";
+		m_output << "    push ecx\n";
+	}
 	void m_gen_push_str(int ip) {
 		m_new_addr(ip);
 		OP cur = m_at(ip);
@@ -860,11 +937,9 @@ public:
 		if(not finded) {
 			int index = (int)m_strings.size();
 			m_strings.push_back({ .index = (int)m_strings.size() , .data = svalue });
-			m_output << "    push " << svalue.length() << "\n";
 			m_output << "    push str_" << index << "\n";
 			return;
 		}
-		m_output << "    push " << it.data.length() << "\n";
 		m_output << "    push str_" << it.index << "\n";
 	}
 	std::string generate() {
@@ -996,12 +1071,20 @@ public:
 				case OP_TYPE::OP_WRITE:
 					m_gen_write(ip);
 					break;
+				case OP_TYPE::OP_MOD:
+					m_gen_mod(ip);
+					break;
+				case OP_TYPE::OP_MEM:
+					m_gen_mem(ip);
+					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);
 			}
 		}
+		m_output << "\nsection .bss\n";
+		m_output << "    mem: resb 640000\n";
 		m_output << "\nsection .data\n";
-		m_output << "    numfmt: db \"%d\", 10, 0\n";
+		m_output << "    numfmt: db \"%d\", 0x0\n";
 		for(int i = 0;i < (int)m_strings.size();++i) {
 			String& cur_s = m_strings[i];
 			m_output << "    str_" << cur_s.index << ": db ";

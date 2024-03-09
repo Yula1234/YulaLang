@@ -52,6 +52,11 @@ enum class TokenType {
     load16,
     store32,
     load32,
+    mod,
+    proc,
+    in,
+    bake,
+    memory,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -147,6 +152,16 @@ std::string tok_to_string(const TokenType type)
         return "`macro`";
     case TokenType::iinclude:
         return "`include`";
+    case TokenType::mod:
+        return "`%`";
+    case TokenType::proc:
+        return "`proc`";
+    case TokenType::in:
+        return "`in`";
+    case TokenType::bake:
+        return "`--`";
+    case TokenType::memory:
+        return "`memory`";
     }
     assert(false);
 }
@@ -176,7 +191,20 @@ bool is_valid_id(char c) {
     switch(c) {
     case '(': case ')':
     case '!': case '@':
-    case '?':
+    case '?': case '_':
+    case '.':
+        return true;
+    }
+    return false;
+}
+
+bool is_valid_id_ns(char c) {
+    switch(c) {
+    case '(': case ')':
+    case '!': case '@':
+    case '?': case '_':
+    case '.': case '-':
+    case '$':
         return true;
     }
     return false;
@@ -199,7 +227,7 @@ public:
         while (peek().has_value()) {
             if (std::isalpha(peek().value()) || is_valid_id(peek().value())) {
                 buf.push_back(consume());
-                while (peek().has_value() && std::isalnum(peek().value()) || ( peek().has_value() && is_valid_id(peek().value()))) {
+                while (peek().has_value() && std::isalnum(peek().value()) || ( peek().has_value() && (is_valid_id(peek().value()) || is_valid_id_ns(peek().value())))) {
                     buf.push_back(consume());
                 }
                 if(buf == "print") {
@@ -334,6 +362,18 @@ public:
                     tokens.push_back({ .type = TokenType::iinclude, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
+                else if(buf == "proc") {
+                    tokens.push_back({ .type = TokenType::proc, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "in") {
+                    tokens.push_back({ .type = TokenType::in, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "memory") {
+                    tokens.push_back({ .type = TokenType::memory, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
                 else {
                     tokens.push_back({ .type = TokenType::ident, .line = line_count, .col = m_col - (int)buf.size(), .value = buf });
                     buf.clear();
@@ -353,6 +393,10 @@ public:
                 while (peek().has_value() && peek().value() != '\n') {
                     consume();
                 }
+            }
+            else if (peek().value() == '%') {
+                consume();
+                tokens.push_back({ .type = TokenType::mod, .line = line_count , .col = m_col -1 });
             }
             else if (peek().value() == '+') {
                 consume();
@@ -400,6 +444,12 @@ public:
                 tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - (int)buf.size(), .value = buf });
                 buf.clear();
             }
+            else if (peek().value() == '-' && peek(1).has_value()
+                    && peek(1).value() == '-') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::bake, .line = line_count , .col = m_col -2 });
+            }
             else if (peek().value() == '-') {
                 consume();
                 tokens.push_back({ .type = TokenType::minus, .line = line_count , .col = m_col -1 });
@@ -429,7 +479,7 @@ public:
                 consume();
             }
             else {
-                std::cerr << "Invalid token" << std::endl;
+                std::cerr << "Invalid token at " << m_index << std::endl;
                 exit(EXIT_FAILURE);
             }
         }

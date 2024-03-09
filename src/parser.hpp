@@ -18,8 +18,14 @@ private:
 		std::string name;
 		token_list _tokens;
 	};
+	struct Memory {
+		std::string name;
+		int offset;
+	};
 	std::vector<std::string> m_includes;
 	std::vector<Macro> m_macroses;
+	std::vector<Memory> m_memories;
+	int m_mem_offset = 0;
 public:
 	void ParsingError(Token tok, const char* err) {
 		std::cout << "Parsing Error at " << tok.line;
@@ -201,7 +207,21 @@ public:
 						}
 					}
 					if(!finded) {
-						ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
+						Memory mem;
+						bool mfinded = false;
+						std::string cname = m_tokens[i].value.value();
+						for(int i = 0;i < m_memories.size();++i) {
+							if(cname == m_memories[i].name) {
+								mfinded = true;
+								mem = m_memories[i];
+								break;
+							}
+						}
+						if(!mfinded) {
+							ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
+						}
+						opsl->push_back(new OP(OP_TYPE::OP_MEM, m_tokens[i], mem.offset));
+						break;
 					}
 					ops_list* compiled_macro = parse(macro._tokens);
 					opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
@@ -234,6 +254,28 @@ public:
     				ops_list* compiled_macro = parse(ntokens);
 					opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
 					m_includes.push_back(path);
+					break;
+				}
+				case TokenType::mod:
+					opsl->push_back(new OP(OP_TYPE::OP_MOD, m_tokens[i]));
+					break;
+				case TokenType::memory:
+				{
+					if(i + 2 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at memory definition except memory name and size"); 
+					}
+					if(m_tokens[i + 1].type != TokenType::ident) {
+						ParsingError(m_tokens[i+1], ("at memory definition except memory name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
+					}
+					if(m_tokens[i + 2].type != TokenType::int_lit) {
+						ParsingError(m_tokens[i+1], ("at memory definition except memory size but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
+					}
+					std::string mname = m_tokens[i + 1].value.value();
+					int size = std::stoi(m_tokens[i + 2].value.value());
+					i += 2;
+					Memory mem = { .name = mname , .offset = m_mem_offset };
+					m_mem_offset += size;
+					m_memories.push_back(mem);
 					break;
 				}
 				default:
