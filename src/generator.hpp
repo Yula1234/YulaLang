@@ -218,6 +218,30 @@ void typecheck_program(ops_list* ops) {
 				}
 				last_scope(scopes).pop_back();
 				break;
+			case OP_TYPE::OP_BOR:
+				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
+					TypeError(last_scope(scopes), ip, ops, "| excepts types [INT, INT], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				break;
+			case OP_TYPE::OP_BAND:
+				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
+					TypeError(last_scope(scopes), ip, ops, "& excepts types [INT, INT], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				break;
+			case OP_TYPE::OP_SHR:
+				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
+					TypeError(last_scope(scopes), ip, ops, ">> excepts types [INT, INT], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				break;
+			case OP_TYPE::OP_SHL:
+				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
+					TypeError(last_scope(scopes), ip, ops, "<< excepts types [INT, INT], but got: ");
+				}
+				last_scope(scopes).pop_back();
+				break;
 			case OP_TYPE::OP_IF:
 				if(!typecheck(last_scope(scopes), 1, DataType::_bool)) {
 					TypeError(last_scope(scopes), ip, ops, "if excepts types [BOOL], but got: ");
@@ -340,6 +364,41 @@ void typecheck_program(ops_list* ops) {
 				last_scope(scopes).pop_back();
 				last_scope(scopes).push_back({ .type = DataType::_int });
 				break;
+			case OP_TYPE::OP_2DUP:
+				if(last_scope(scopes).size() < 1) {
+					TypeError(last_scope(scopes), ip, ops, "2dup excepts 1 element, but got: ");
+				}
+				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 1] });
+				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 1] });
+				break;
+			case OP_TYPE::OP_OVER:
+				if(last_scope(scopes).size() < 3) {
+					TypeError(last_scope(scopes), ip, ops, "over excepts 3 elements, but got: ");
+				}
+				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 3] });
+				break;
+			case OP_TYPE::OP_SWAP:
+			{
+				if(last_scope(scopes).size() < 2) {
+					TypeError(last_scope(scopes), ip, ops, "swap excepts 2 elements, but got: ");
+				}
+				DataElement last = last_scope(scopes)[last_scope(scopes).size() - 2];
+				DataElement cur = last_scope(scopes)[last_scope(scopes).size() - 1];
+				last_scope(scopes).pop_back();
+				last_scope(scopes).pop_back();
+				last_scope(scopes).push_back(cur);
+				last_scope(scopes).push_back(last);
+				break;
+			}
+			case OP_TYPE::OP_DUMP:
+			{
+				OP* cur_dump = (*ops)[ip];
+				Token tok = cur_dump->tok;
+				std::cout << "??? dump at " << tok.line << "." << tok.col << ": ";
+				show_sdata(last_scope(scopes));
+				exit(0);
+				break;
+			}
 		}
 	}
 }
@@ -386,6 +445,20 @@ public:
 		m_output << "    push numfmt\n";
 		m_output << "    call printf\n";
 		m_output << "    add esp, 8\n";
+	}
+	void m_gen_bor(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ebx\n";
+		m_output << "    pop eax\n";
+		m_output << "    or eax, ebx\n";
+		m_output << "    push eax\n";
+	}
+	void m_gen_band(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ebx\n";
+		m_output << "    pop eax\n";
+		m_output << "    and eax, ebx\n";
+		m_output << "    push eax\n";
 	}
 	void m_gen_add_oper(int ip) {
 		m_new_addr(ip);
@@ -475,6 +548,11 @@ public:
 		m_new_addr(ip);
 		m_output << "    push dword [esp]\n";
 	}
+	void m_gen_2dup(int ip) {
+		m_new_addr(ip);
+		m_output << "    push dword [esp]\n";
+		m_output << "    push dword [esp]\n";
+	}
 	void m_gen_do(int ip) {
 		m_new_addr(ip);
 		m_output << "    pop edx\n";
@@ -511,6 +589,20 @@ public:
 		m_output << "    and eax, ebx\n";
 		m_output << "    push eax\n";
 	}
+	void m_gen_shl(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    pop eax\n";
+		m_output << "    shl eax, cl\n";
+		m_output << "    push eax\n";
+	}
+	void m_gen_shr(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop ecx\n";
+		m_output << "    pop eax\n";
+		m_output << "    shr eax, cl\n";
+		m_output << "    push eax\n";
+	}
 	void m_gen_true(int ip) {
 		m_new_addr(ip);
 		m_output << "    push 1\n";
@@ -541,6 +633,17 @@ public:
 		m_output << "    pop ecx\n";
 		m_output << "    xor ebx, ebx\n";
 		m_output << "    mov bl, byte [ecx]\n";
+		m_output << "    push ebx\n";
+	}
+	void m_gen_over(int ip) {
+		m_new_addr(ip);
+		m_output << "    push dword [esp+8]\n";
+	}
+	void m_gen_swap(int ip) {
+		m_new_addr(ip);
+		m_output << "    pop eax\n";
+		m_output << "    pop ebx\n";
+		m_output << "    push eax\n";
 		m_output << "    push ebx\n";
 	}
 	std::string generate() {
@@ -632,6 +735,27 @@ public:
 					break;
 				case OP_TYPE::OP_LOAD8:
 					m_gen_load8(ip);
+					break;
+				case OP_TYPE::OP_2DUP:
+					m_gen_2dup(ip);
+					break;
+				case OP_TYPE::OP_BAND:
+					m_gen_band(ip);
+					break;
+				case OP_TYPE::OP_BOR:
+					m_gen_bor(ip);
+					break;
+				case OP_TYPE::OP_SHL:
+					m_gen_shl(ip);
+					break;
+				case OP_TYPE::OP_SHR:
+					m_gen_shr(ip);
+					break;
+				case OP_TYPE::OP_SWAP:
+					m_gen_swap(ip);
+					break;
+				case OP_TYPE::OP_OVER:
+					m_gen_over(ip);
 					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);

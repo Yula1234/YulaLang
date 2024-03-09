@@ -36,6 +36,14 @@ enum class TokenType {
     load8,
     free,
     cast_ptr,
+    dup2,
+    bor,
+    band,
+    shl,
+    shr,
+    swap,
+    over,
+    dump,
 };
 
 inline std::string to_string(const TokenType type)
@@ -101,6 +109,20 @@ inline std::string to_string(const TokenType type)
         return "`@8`";
     case TokenType::free:
         return "`free`";
+    case TokenType::dup2:
+        return "`free`";
+    case TokenType::bor:
+        return "`|`";
+    case TokenType::band:
+        return "`&`";
+    case TokenType::shl:
+        return "`<<`";
+    case TokenType::shr:
+        return "`>>`";
+    case TokenType::swap:
+        return "`swap`";
+    case TokenType::over:
+        return "`over`";
     }
     assert(false);
 }
@@ -128,13 +150,9 @@ struct Token {
 
 bool is_valid_id(char c) {
     switch(c) {
-    case '(':
-        return true;
-    case ')':
-        return true;
-    case '!':
-        return true;
-    case '@':
+    case '(': case ')':
+    case '!': case '@':
+    case '?':
         return true;
     }
     return false;
@@ -248,6 +266,22 @@ public:
                     tokens.push_back({ .type = TokenType::load8, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
+                else if(buf == "dup2") {
+                    tokens.push_back({ .type = TokenType::dup2, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "swap") {
+                    tokens.push_back({ .type = TokenType::swap, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "over") {
+                    tokens.push_back({ .type = TokenType::over, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "???") {
+                    tokens.push_back({ .type = TokenType::dump, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
                 else {
                     tokens.push_back({ .type = TokenType::ident, .line = line_count, .col = m_col - (int)buf.size(), .value = buf });
                     buf.clear();
@@ -276,6 +310,18 @@ public:
                 consume();
                 tokens.push_back({ .type = TokenType::star, .line = line_count , .col = m_col -1 });
             }
+            else if (peek().value() == '<' && peek(1).has_value()
+                    && peek(1).value() == '<') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::shl, .line = line_count , .col = m_col -2 });
+            }
+            else if (peek().value() == '>' && peek(1).has_value()
+                    && peek(1).value() == '>') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::shr, .line = line_count , .col = m_col -2 });
+            }
             else if (peek().value() == '<') {
                 consume();
                 tokens.push_back({ .type = TokenType::left_arrow, .line = line_count , .col = m_col -1 });
@@ -295,6 +341,14 @@ public:
             else if (peek().value() == '/') {
                 consume();
                 tokens.push_back({ .type = TokenType::fslash, .line = line_count , .col = m_col -1 });
+            }
+            else if (peek().value() == '|') {
+                consume();
+                tokens.push_back({ .type = TokenType::bor, .line = line_count , .col = m_col -1 });
+            }
+            else if (peek().value() == '&') {
+                consume();
+                tokens.push_back({ .type = TokenType::band, .line = line_count , .col = m_col -1 });
             }
             else if (peek().value() == '\n') {
                 consume();

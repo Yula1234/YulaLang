@@ -111,6 +111,30 @@ public:
 				case TokenType::store8:
 					opsl->push_back(new OP(OP_TYPE::OP_STORE8, m_tokens[i]));
 					break;
+				case TokenType::dup2:
+					opsl->push_back(new OP(OP_TYPE::OP_2DUP, m_tokens[i]));
+					break;
+				case TokenType::band:
+					opsl->push_back(new OP(OP_TYPE::OP_BAND, m_tokens[i]));
+					break;
+				case TokenType::bor:
+					opsl->push_back(new OP(OP_TYPE::OP_BOR, m_tokens[i]));
+					break;
+				case TokenType::shr:
+					opsl->push_back(new OP(OP_TYPE::OP_SHR, m_tokens[i]));
+					break;
+				case TokenType::shl:
+					opsl->push_back(new OP(OP_TYPE::OP_SHL, m_tokens[i]));
+					break;
+				case TokenType::over:
+					opsl->push_back(new OP(OP_TYPE::OP_OVER, m_tokens[i]));
+					break;
+				case TokenType::swap:
+					opsl->push_back(new OP(OP_TYPE::OP_SWAP, m_tokens[i]));
+					break;
+				case TokenType::dump:
+					opsl->push_back(new OP(OP_TYPE::OP_DUMP, m_tokens[i]));
+					break;
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}
