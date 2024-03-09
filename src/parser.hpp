@@ -200,7 +200,7 @@ public:
 					if(m_tokens[i + 1].type != TokenType::string_lit) {
 						ParsingError(m_tokens[i+1], ("at include except string file name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
 					}
-					std::string fname = m_tokens[++i].value.value();
+					std::string fname = "lib/" + m_tokens[++i].value.value() + ".yula";
 					std::string contents;
     				{
        	 				std::stringstream contents_stream;
