@@ -4,6 +4,8 @@
 #include<fstream>
 #include<string>
 #include<vector>
+#include<filesystem>
+#include<algorithm>
 
 #include "ops.hpp"
 #include "lexer.hpp"
@@ -16,7 +18,8 @@ private:
 		std::string name;
 		token_list _tokens;
 	};
-	std::vector<Macro> macroses;
+	std::vector<std::string> m_includes;
+	std::vector<Macro> m_macroses;
 public:
 	void ParsingError(Token tok, const char* err) {
 		std::cout << "Parsing Error at " << tok.line;
@@ -170,7 +173,7 @@ public:
 						}
 						macro._tokens.push_back(m_tokens[i++]);
 					}
-					macroses.push_back(macro);
+					m_macroses.push_back(macro);
 					break;
 				}
 				case TokenType::ident: 
@@ -178,10 +181,10 @@ public:
 					Macro macro;
 					bool finded = false;
 					std::string cname = m_tokens[i].value.value();
-					for(int i = 0;i < macroses.size();++i) {
-						if(cname == macroses[i].name) {
+					for(int i = 0;i < m_macroses.size();++i) {
+						if(cname == m_macroses[i].name) {
 							finded = true;
-							macro = macroses[i];
+							macro = m_macroses[i];
 							break;
 						}
 					}
@@ -200,11 +203,16 @@ public:
 					if(m_tokens[i + 1].type != TokenType::string_lit) {
 						ParsingError(m_tokens[i+1], ("at include except string file name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
 					}
-					std::string fname = "lib/" + m_tokens[++i].value.value() + ".yula";
+					std::string fname = "./lib/" + m_tokens[++i].value.value() + ".yula";
+					std::string path = std::filesystem::canonical(fname).string();
+					if(std::find(m_includes.begin(), m_includes.end(), path) != m_includes.end()) {
+						// lib already included
+						break;
+					}
 					std::string contents;
     				{
        	 				std::stringstream contents_stream;
-       					std::fstream input(fname, std::ios::in);
+       					std::fstream input(path, std::ios::in);
     	   				contents_stream << input.rdbuf();
     			    	contents = contents_stream.str();
     	    			input.close();
@@ -213,6 +221,7 @@ public:
     				token_list ntokens = nlexer.lex();
     				ops_list* compiled_macro = parse(ntokens);
 					opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
+					m_includes.push_back(path);
 					break;
 				}
 				default:
