@@ -189,194 +189,281 @@ void typecheck_program(ops_list* ops) {
 				last_scope(scopes).push_back({ .type = DataType::_bool });
 				break;
 			case OP_TYPE::INTR_PRINT:
-				if(!typecheck(last_scope(scopes), 1, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "print excepts types [INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::_int)) {
+					TypeError(ds, ip, ops, "print excepts types [INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OPER_ADD:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "+ excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "+ excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OPER_SUB:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "- excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "- excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OPER_MUL:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "* excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "* excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OPER_DIV:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "/ excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "/ excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_BOR:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "| excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "| excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_BAND:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "& excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "& excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_SHR:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, ">> excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, ">> excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_SHL:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "<< excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "<< excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_IF:
-				if(!typecheck(last_scope(scopes), 1, DataType::_bool)) {
-					TypeError(last_scope(scopes), ip, ops, "if excepts types [BOOL], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::_bool)) {
+					TypeError(ds, ip, ops, "if excepts types [BOOL], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_EXIT:
-				if(!typecheck(last_scope(scopes), 1, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "at end of the program excepts types [INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::_int)) {
+					TypeError(ds, ip, ops, "at end of the program excepts types [INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_EQ:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "= excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "= excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::_bool });
+				ds.pop_back();
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_bool });
 				break;
+			}
 			case OP_TYPE::OP_ABOVE:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "> excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "> excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::_bool });
+				ds.pop_back();
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_bool });
 				break;
+			}
 			case OP_TYPE::OP_LESS:
-				if(!typecheck(last_scope(scopes), 2, DataType::_int, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "< excepts types [INT, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_int, DataType::_int)) {
+					TypeError(ds, ip, ops, "< excepts types [INT, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::_bool });
+				ds.pop_back();
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_bool });
 				break;
+			}
 			case OP_TYPE::OP_NOT:
-				if(!typecheck(last_scope(scopes), 1, DataType::_bool)) {
-					TypeError(last_scope(scopes), ip, ops, "not excepts types [BOOL], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::_bool)) {
+					TypeError(ds, ip, ops, "not excepts types [BOOL], but got: ");
 				}
 				break;
+			}
 			case OP_TYPE::OP_OR:
-				if(!typecheck(last_scope(scopes), 2, DataType::_bool, DataType::_bool)) {
-					TypeError(last_scope(scopes), ip, ops, "or excepts types [BOOL, BOOL], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_bool, DataType::_bool)) {
+					TypeError(ds, ip, ops, "or excepts types [BOOL, BOOL], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_AND:
-				if(!typecheck(last_scope(scopes), 2, DataType::_bool, DataType::_bool)) {
-					TypeError(last_scope(scopes), ip, ops, "and excepts types [BOOL, BOOL], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::_bool, DataType::_bool)) {
+					TypeError(ds, ip, ops, "and excepts types [BOOL, BOOL], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_DUP:
-				if(last_scope(scopes).size() < 1) {
-					TypeError(last_scope(scopes), ip, ops, "dup excepts 1 element, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 1) {
+					TypeError(ds, ip, ops, "dup excepts 1 element, but got: ");
 				}
-				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 1] });
+				ds.push_back(ds[ds.size() - 1]);
 				break;
+			}
 			case OP_TYPE::OP_DO:
-				if(!typecheck(last_scope(scopes), 1, DataType::_bool)) {
-					TypeError(last_scope(scopes), ip, ops, "do except types [BOOL], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::_bool)) {
+					TypeError(ds, ip, ops, "do except types [BOOL], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_DROP:
-				if(last_scope(scopes).size() < 1) {
-					TypeError(last_scope(scopes), ip, ops, "drop excepts 1 element, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 1) {
+					TypeError(ds, ip, ops, "drop excepts 1 element, but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::CAST_INT:
-				if(last_scope(scopes).size() < 1) {
-					TypeError(last_scope(scopes), ip, ops, "cast(int) excepts 1 element, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 1) {
+					TypeError(ds, ip, ops, "cast(int) excepts 1 element, but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::_int });
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
 				ops->erase(ops->begin() + ip--);
 				break;
+			}
 			case OP_TYPE::CAST_BOOL:
-				if(last_scope(scopes).size() < 1) {
-					TypeError(last_scope(scopes), ip, ops, "cast(bool) excepts 1 element, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 1) {
+					TypeError(ds, ip, ops, "cast(bool) excepts 1 element, but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::_bool });
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_bool });
 				ops->erase(ops->begin() + ip--);
 				break;
+			}
 			case OP_TYPE::CAST_PTR:
-				if(last_scope(scopes).size() < 1) {
-					TypeError(last_scope(scopes), ip, ops, "cast(ptr) excepts 1 element, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 1) {
+					TypeError(ds, ip, ops, "cast(ptr) excepts 1 element, but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::ptr });
+				ds.pop_back();
+				ds.push_back({ .type = DataType::ptr });
 				ops->erase(ops->begin() + ip--);
 				break;
+			}
 			case OP_TYPE::OP_MALLOC:
-				if(!typecheck(last_scope(scopes), 1, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "malloc excepts types [INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::_int)) {
+					TypeError(ds, ip, ops, "malloc excepts types [INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::ptr });
+				ds.pop_back();
+				ds.push_back({ .type = DataType::ptr });
 				break;
+			}
 			case OP_TYPE::OP_FREE:
-				if(!typecheck(last_scope(scopes), 1, DataType::ptr)) {
-					TypeError(last_scope(scopes), ip, ops, "free excepts types [PTR], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::ptr)) {
+					TypeError(ds, ip, ops, "free excepts types [PTR], but got: ");
 				}
-				last_scope(scopes).pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_STORE8:
-				if(!typecheck(last_scope(scopes), 2, DataType::ptr, DataType::_int)) {
-					TypeError(last_scope(scopes), ip, ops, "!8 excepts types [PTR, INT], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 2, DataType::ptr, DataType::_int)) {
+					TypeError(ds, ip, ops, "!8 excepts types [PTR, INT], but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).pop_back();
+				ds.pop_back();
+				ds.pop_back();
 				break;
+			}
 			case OP_TYPE::OP_LOAD8:
-				if(!typecheck(last_scope(scopes), 1, DataType::ptr)) {
-					TypeError(last_scope(scopes), ip, ops, "@8 excepts types [PTR], but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(!typecheck(ds, 1, DataType::ptr)) {
+					TypeError(ds, ip, ops, "@8 excepts types [PTR], but got: ");
 				}
-				last_scope(scopes).pop_back();
-				last_scope(scopes).push_back({ .type = DataType::_int });
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
 				break;
+			}
 			case OP_TYPE::OP_2DUP:
-				if(last_scope(scopes).size() < 1) {
-					TypeError(last_scope(scopes), ip, ops, "2dup excepts 1 element, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 1) {
+					TypeError(ds, ip, ops, "2dup excepts 1 element, but got: ");
 				}
-				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 1] });
-				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 1] });
+				ds.push_back({ .type = ds[ds.size() - 1] });
+				ds.push_back({ .type = ds[ds.size() - 1] });
 				break;
+			}
 			case OP_TYPE::OP_OVER:
-				if(last_scope(scopes).size() < 3) {
-					TypeError(last_scope(scopes), ip, ops, "over excepts 3 elements, but got: ");
+			{
+				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 3) {
+					TypeError(ds, ip, ops, "over excepts 3 elements, but got: ");
 				}
-				last_scope(scopes).push_back({ .type = last_scope(scopes)[last_scope(scopes).size() - 3] });
+				ds.push_back({ .type = ds[ds.size() - 3] });
 				break;
+			}
 			case OP_TYPE::OP_SWAP:
 			{
 				if(last_scope(scopes).size() < 2) {
