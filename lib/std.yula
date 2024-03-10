@@ -5,25 +5,32 @@ macro stderr 2 end
 macro EXIT_SUCCESS 0 end
 macro EXIT_FAILURE 1 end
 
+macro @ptr @32 cast(ptr) end
+macro !ptr cast(int) !32 end
+
+macro @bool @8 cast(bool) end
+macro !bool cast(int) !8 end
+
+macro @int @32 end
+macro !int !32 end
+
+macro ptr_diff
+  swap cast(int)
+  swap cast(int)
+  -
+end
+
 macro strlen
-	// str i (str-1)
-	dup
-	0 swap while dup @8 0 = not do
-		1 +
-		swap
-		1 +
-		swap
-	end
-	drop swap drop 1 -
+  dup
+  while dup @8 0 = not do 1 + end
+  swap ptr_diff
 end
 
 macro fputs
 	// excepts string on the stack
 	// [ptr:string data, int:file descriptor]
 	// fd len data fd
-	swap dup strlen dup 0 = if
-		1 +
-	end
+	swap dup strlen
 	swap over write drop drop
 end
 
@@ -50,8 +57,46 @@ macro sizeof(int)  4 end
 macro sizeof(bool) 4 end
 macro sizeof(ptr)  4 end
 
-macro str$
+macro cstr_to_str
+	// ins [ptr] : outs[int, ptr]
 	dup strlen swap
 end
 
 macro puti print endl puts end
+
+// struct Str
+
+macro Str.count 0 end
+macro Str.data sizeof(ptr) end
+macro sizeof(Str) Str.data 4 + end
+
+memory str_len 4 end
+memory str_data 4 end
+
+macro !Str
+	// ins [ptr, ptr] : outs [ptr]
+	swap cstr_to_str
+	str_data swap !ptr
+	str_len swap !int
+	dup str_len @int !int
+	dup Str.data + str_data @ptr !ptr
+end
+
+macro @Str.count
+	// ins [Str] : outs [int]
+	// reads first 4 bytes of struct
+	// where stored size
+	@int
+end
+
+macro @Str.data
+	// ins [Str] : outs [ptr]
+	// reads data field of Str struct
+	Str.data + @ptr
+end
+
+macro @Str
+	dup @Str.count
+	swap @Str.data
+	swap
+end
