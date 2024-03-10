@@ -207,7 +207,15 @@ void typecheck_program(ops_list* ops) {
 				if(!typecheck(ds, 2, DataType::_int, DataType::_int) && !typecheck(ds, 2, DataType::ptr, DataType::_int)) {
 					TypeError(ds, ip, ops, "+ excepts types [INT, INT], but got: ");
 				}
+				if(typecheck(ds, 2, DataType::ptr, DataType::_int)) {
+					ds.pop_back();
+					ds.pop_back();
+					ds.push_back({ .type = DataType::ptr });
+					break;
+				}
 				ds.pop_back();
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
 				break;
 			}
 			case OP_TYPE::OPER_SUB:
@@ -216,7 +224,15 @@ void typecheck_program(ops_list* ops) {
 				if(!typecheck(ds, 2, DataType::_int, DataType::_int) && !typecheck(ds, 2, DataType::ptr, DataType::_int)) {
 					TypeError(ds, ip, ops, "- excepts types [INT, INT], but got: ");
 				}
+				if(typecheck(ds, 2, DataType::ptr, DataType::_int)) {
+					ds.pop_back();
+					ds.pop_back();
+					ds.push_back({ .type = DataType::ptr });
+					break;
+				}
 				ds.pop_back();
+				ds.pop_back();
+				ds.push_back({ .type = DataType::_int });
 				break;
 			}
 			case OP_TYPE::OPER_MUL:
@@ -542,11 +558,13 @@ void typecheck_program(ops_list* ops) {
 			case OP_TYPE::OP_2DUP:
 			{
 				DataStack& ds = last_scope(scopes);
-				if(ds.size() < 1) {
-					TypeError(ds, ip, ops, "2dup excepts 1 element, but got: ");
+				if(ds.size() < 2) {
+					TypeError(ds, ip, ops, "2dup excepts 2 elements, but got: ");
 				}
-				ds.push_back({ .type = ds[ds.size() - 1] });
-				ds.push_back({ .type = ds[ds.size() - 1] });
+				DataElement cur = ds[ds.size() - 1];
+				DataElement last = ds[ds.size() - 2];
+				ds.push_back(last);
+				ds.push_back(cur);
 				break;
 			}
 			case OP_TYPE::OP_OVER:
@@ -555,7 +573,7 @@ void typecheck_program(ops_list* ops) {
 				if(ds.size() < 3) {
 					TypeError(ds, ip, ops, "over excepts 3 elements, but got: ");
 				}
-				ds.push_back({ .type = ds[ds.size() - 3] });
+				ds.push_back(ds[ds.size() - 3]);
 				break;
 			}
 			case OP_TYPE::OP_SWAP:
@@ -607,7 +625,7 @@ void typecheck_program(ops_list* ops) {
 		}
 	}
 	DataStack& ds = last_scope(scopes);
-	if(ds.size() > 1) {
+	if(ds.size() > 0) {
 		std::cout << "at end of the program except INT, but got unhandled data: ";
 		show_sdata(ds);
 	}
@@ -635,9 +653,13 @@ private:
 	ops_list* m_ops;
 	std::stringstream m_output;
 	std::vector<String> m_strings;
+	int m_memsize = 96;
 public:
 	explicit Generator(ops_list* _ops) {
 		m_ops = _ops;
+	}
+	void set_memsize(int nmemsize) {
+		m_memsize = nmemsize;
 	}
 	OP m_at(int index) {
 		return *((*m_ops)[index]);
@@ -1082,19 +1104,16 @@ public:
 			}
 		}
 		m_output << "\nsection .bss\n";
-		m_output << "    mem: resb 640000\n";
+		m_output << "    mem: resb " << m_memsize << "\n";
 		m_output << "\nsection .data\n";
 		m_output << "    numfmt: db \"%d\", 0x0\n";
 		for(int i = 0;i < (int)m_strings.size();++i) {
 			String& cur_s = m_strings[i];
 			m_output << "    str_" << cur_s.index << ": db ";
 			for(int j = 0;j < cur_s.data.length();++j) {
-				m_output << "0x" << std::hex << (int)cur_s.data[j];
-				if(j != ((int)cur_s.data.length() - 1)) {
-					m_output << ", ";
-				}
+				m_output << "0x" << std::hex << (int)cur_s.data[j] << ", ";
 			}
-			m_output << "\n";
+			m_output << "0x0\n";
 		}
 		return m_output.str();
 	}

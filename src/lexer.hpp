@@ -204,7 +204,7 @@ bool is_valid_id_ns(char c) {
     case '!': case '@':
     case '?': case '_':
     case '.': case '-':
-    case '$':
+    case '$': case '=':
         return true;
     }
     return false;
@@ -442,6 +442,23 @@ public:
                     }
                 }
                 tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - (int)buf.size(), .value = buf });
+                buf.clear();
+            }
+            else if(peek().value() == '\'') {
+                consume();
+                if(!peek().has_value()) {
+                    std::cout << "unclosed '\n";
+                }
+                char c = consume();
+                if(c == '\'') {
+                    if(peek().value() == 'n') {
+                        c = (char)10;
+                    }
+                }
+                if(!peek().has_value() || peek().value() != '\'') {
+                    std::cout << "unclosed '\n";
+                }
+                tokens.push_back({ .type = TokenType::int_lit, .line = line_count , .col = m_col - (int)buf.size(), .value = std::to_string((int)c) });
                 buf.clear();
             }
             else if (peek().value() == '-' && peek(1).has_value()

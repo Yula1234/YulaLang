@@ -27,6 +27,9 @@ private:
 	std::vector<Memory> m_memories;
 	int m_mem_offset = 0;
 public:
+	int get_memsize() {
+		return m_mem_offset;
+	}
 	void ParsingError(Token tok, const char* err) {
 		std::cout << "Parsing Error at " << tok.line;
 		std::cout << "." << tok.col << ": " << err;
@@ -169,13 +172,23 @@ public:
 					break;
 				case TokenType::macro:
 				{
+					Token MacroDef = m_tokens[i];
 					if(i + 1 > m_tokens.size()) {
 						ParsingError(m_tokens[i], "at macro definition except macro name but got nothing"); 
 					}
 					if(m_tokens[i + 1].type != TokenType::ident) {
 						ParsingError(m_tokens[i+1], ("at macro definition except macro name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
 					}
-					Macro macro = { .line = m_tokens[i].line, .col = m_tokens[i].col , .name = m_tokens[i+1].value.value() };
+					std::string mcname = m_tokens[i+1].value.value();
+					for(int i = 0;i < m_macroses.size();++i) {
+						if(mcname == m_macroses[i].name) {
+							std::cout << "at " << MacroDef.line << "." << MacroDef.col;
+							std::cout << " redefinition of macro `" << mcname << "`";
+							std::cout << "NOTE: first defenition " << m_macroses[i].line << "." << m_macroses[i].col << "\n";
+							exit(1);
+						}
+					}
+					Macro macro = { .line = m_tokens[i].line, .col = m_tokens[i].col , .name = mcname };
 					std::vector<Token> bstack;
 					i += 2;
 					while(m_tokens[i].type != TokenType::end || bstack.size() != 0) {
@@ -183,6 +196,8 @@ public:
 						case TokenType::_if: case TokenType::wwhile:
 							bstack.push_back(m_tokens[i]);
 							break;
+						case TokenType::macro:
+							ParsingError(MacroDef, ("Unclosed macro `" + mcname + "`").c_str());
 						case TokenType::end:
 							if(bstack.size() == 0) {
 								ParsingError(m_tokens[i], "invalid end");
@@ -261,8 +276,8 @@ public:
 					break;
 				case TokenType::memory:
 				{
-					if(i + 2 > m_tokens.size()) {
-						ParsingError(m_tokens[i], "at memory definition except memory name and size"); 
+					if(i + 3 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at memory definition except memory name and size, and end"); 
 					}
 					if(m_tokens[i + 1].type != TokenType::ident) {
 						ParsingError(m_tokens[i+1], ("at memory definition except memory name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
@@ -270,9 +285,12 @@ public:
 					if(m_tokens[i + 2].type != TokenType::int_lit) {
 						ParsingError(m_tokens[i+1], ("at memory definition except memory size but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
 					}
+					if(m_tokens[i + 3].type != TokenType::end) {
+						ParsingError(m_tokens[i+1], "at memory definition missing end");
+					}
 					std::string mname = m_tokens[i + 1].value.value();
 					int size = std::stoi(m_tokens[i + 2].value.value());
-					i += 2;
+					i += 3;
 					Memory mem = { .name = mname , .offset = m_mem_offset };
 					m_mem_offset += size;
 					m_memories.push_back(mem);
