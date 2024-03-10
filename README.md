@@ -24,12 +24,12 @@ assembly (NASM x84_64 32-bit).
 
 # goals
 
-[ x ] compilled
-[ x ] native
-[ x ] turing complete
-[   ] procedures
-[   ] consts
-[   ] optimizing assembly
+- [x] Compiled to a native instruction set (only x86_64 for now)
+- [x] [Turing-complete]
+- [x] Statically typed (the type checking is inspired by [WASM validation](https://binji.github.io/posts/webassembly-type-checking/))
+- [ ] impliment procedures
+- [ ] implement constants
+- [ ] optimization on assembly generation
 
 # Exampes
 
