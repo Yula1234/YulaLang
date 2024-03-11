@@ -11,50 +11,6 @@
 #include "lexer.hpp"
 #include "lexer.hpp"
 
-enum class DataType {
-	_int,
-	_bool,
-	ptr,
-};
-
-std::string dt_tostr(DataType dt) {
-	switch(dt) {
-		case DataType::_int:
-			return "INT";
-		case DataType::_bool:
-			return "BOOL";
-		case DataType::ptr:
-			return "PTR";
-	}
-	assert(false);
-	return "";
-}
-
-struct DataElement {
-	DataType type;
-	friend std::ostream& operator<<(std::ostream& out, DataElement& de) {
-        out << "<" << dt_tostr(de.type) << ">";
-        return out;
-    }
-    friend bool operator==(const DataElement one, const DataElement two) {
-        return one.type == two.type;
-    }
-};
-
-#define DataStack std::vector<DataElement>
-
-void show_sdata(DataStack& ds) {
-	int size = ds.size();
-	std::cout << "[";
-	for(int i = 0;i < size;++i) {
-		std::cout << ds[i];
-		if(i != (size - 1)) {
-			std::cout << ", ";
-		}
-	}
-	std::cout << "]\n";
-}
-
 
 bool typecheck(DataStack& ds, int length, ...) {
 	if(ds.size() < length) {
@@ -77,6 +33,20 @@ bool typecheck(DataStack& ds, int length, ...) {
 	return true;
 }
 
+bool typecheckds(DataStack& ds, DataStack& extypes) {
+	if(ds.size() < extypes.size()) {
+		return false;
+	}
+	int ip = ds.size();
+	for(int i = extypes.size() - 1;i > -1;--i) {
+		DataElement cur = extypes[i];
+		if(ds[--ip].type != cur.type) {
+			return false;
+		}
+	}
+	return true;
+}
+
 
 const std::vector<const char*> std_externs = {
 	"ExitProcess@4",
@@ -87,12 +57,15 @@ const std::vector<const char*> std_externs = {
 };
 
 
-void crossref_check_blocks(ops_list* ops) {
+void crossref_check_blocks(ops_list* ops, std::vector<Procedure> m_procs) {
 	std::vector<OP*> stack;
 	std::vector<int> locs;
 	for(int ip = 0;ip < ops->size();++ip) {
 		switch((*(ops))[ip]->type) {
 			case OP_TYPE::OP_IF:
+				stack.push_back((*(ops))[ip]);
+				break;
+			case OP_TYPE::OP_SKIP_PROC:
 				stack.push_back((*(ops))[ip]);
 				break;
 			case OP_TYPE::OP_WHILE:
@@ -131,6 +104,17 @@ void crossref_check_blocks(ops_list* ops) {
 					stack.pop_back();
 					cur->operand1 = locs[locs.size() - 1];
 					locs.pop_back();
+					stack.pop_back();
+					break;
+				}
+				if(stack[stack.size() - 1]->type == OP_TYPE::OP_SKIP_PROC) {
+					cur->operand1 = -2;
+					for(int i = 0;i < m_procs.size();++i) {
+						if(m_procs[i].name == stack[stack.size() - 1]->tok.value.value()) {
+							cur->operand2 = i;
+							break;
+						}
+					}
 					stack.pop_back();
 					break;
 				}
@@ -178,14 +162,47 @@ void TypeError(DataStack& ds, int ip, ops_list* ops, const char* err) {
 	exit(1);
 }
 
-void typecheck_program(ops_list* ops) {
+
+void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 	std::vector<DataStack*> scopes;
 	scopes.push_back(new DataStack);
+	std::vector<OP*> bstack;
+	std::vector<int> ifsizes;
+	bool is_proc = false;
 	for(int ip = 0;ip < ops->size();++ip) {
 		switch((*ops)[ip]->type) {
 			case OP_TYPE::PUSH_INT:
 				last_scope(scopes).push_back({ .type = DataType::_int });
 				break;
+			case OP_TYPE::OP_PROC:
+			{
+				scopes.push_back(new DataStack);
+				is_proc = true;
+				OP* cur = (*ops)[ip];
+				DataStack& ds = last_scope(scopes);
+				Procedure proc = proc_lookup(m_procs, cur->tok.value.value()).value();
+				ds.insert(ds.end(), proc.ins.begin(), proc.ins.end());
+				break;
+			}
+			case OP_TYPE::OP_CALL:
+			{
+				OP* cur = (*ops)[ip];
+				DataStack& ds = last_scope(scopes);
+				Procedure proc = proc_lookup(m_procs, cur->tok.value.value()).value();
+				if(!typecheckds(ds, proc.ins)) {
+					std::cout << "at " << cur->tok.line << "." << cur->tok.col;
+					std::cout << " procedure `" << proc.name << "` except types: \n";
+					show_sdata(proc.ins);
+					std::cout << "but got:\n";
+					show_sdata(ds);
+					exit(1);
+				}
+				for(int i = 0;i < proc.ins.size();++i) {
+					ds.pop_back();
+				}
+				ds.insert(ds.end(), proc.outs.begin(), proc.outs.end());
+				break;
+			}
 			case OP_TYPE::OP_TRUE:
 				last_scope(scopes).push_back({ .type = DataType::_bool });
 				break;
@@ -298,42 +315,27 @@ void typecheck_program(ops_list* ops) {
 				ds.pop_back();
 				break;
 			}
-			case OP_TYPE::OP_END:
-			{
-				if(scopes.size() == 3) {
-					DataStack& elseds = last_scope(scopes);
-					scopes.pop_back();
-					DataStack& ifds = last_scope(scopes);
-					scopes.pop_back();
-					if(ifds.size() != elseds.size()) {
-						std::cout << "if else branches have difficult types at the end.\n";
-						std::cout << "if branch: ";
-						show_sdata(ifds);
-						std::cout << "else branch: ";
-						show_sdata(elseds);
-						exit(1);
-					}
-					for(int i = 0;i < ifds.size();++i) {
-						if(ifds[i].type != elseds[i].type) {
-							std::cout << "if else branches have difficult types at the end.\n";
-							std::cout << "if branch: ";
-							show_sdata(ifds);
-							std::cout << "else branch: ";
-							show_sdata(elseds);
-							exit(1);
-						}
-					}
-					DataStack& main_ds = last_scope(scopes);
-					main_ds.insert(main_ds.end(), elseds.begin(), elseds.end());
-				}
-				break;
-			}
 			case OP_TYPE::OP_ELSE:
 			{
-				DataStack& lds = *(scopes[scopes.size() - 2]);
-				scopes.push_back(new DataStack);
 				DataStack& ds = last_scope(scopes);
-				ds.assign(lds.begin(), lds.end());
+				if(ifsizes.size() == 0) {
+					std::cout << "else without if\n";
+					exit(1); // TODO: propper error message
+				}
+				while(ds.size() > ifsizes[ifsizes.size() - 1]) {
+					ds.pop_back();
+				}
+				ifsizes.pop_back();
+				break;
+			}
+			case OP_TYPE::OP_END:
+			{
+				if(is_proc && bstack.size() == 0) {
+					scopes.pop_back();
+					is_proc = false;
+				} else {
+					bstack.pop_back();
+				}
 				break;
 			}
 			case OP_TYPE::OP_IF:
@@ -343,9 +345,7 @@ void typecheck_program(ops_list* ops) {
 					TypeError(ds, ip, ops, "if excepts types [BOOL], but got: ");
 				}
 				ds.pop_back();
-				scopes.push_back(new DataStack);
-				DataStack& ds2 = last_scope(scopes);
-				ds2.assign(ds.begin(), ds.end());
+				ifsizes.push_back(ds.size());
 				break;
 			}
 			case OP_TYPE::OP_EXIT:
@@ -432,6 +432,7 @@ void typecheck_program(ops_list* ops) {
 					TypeError(ds, ip, ops, "do except types [BOOL], but got: ");
 				}
 				ds.pop_back();
+				bstack.push_back((*ops)[ip]);
 				break;
 			}
 			case OP_TYPE::OP_DROP:
@@ -570,8 +571,17 @@ void typecheck_program(ops_list* ops) {
 			case OP_TYPE::OP_OVER:
 			{
 				DataStack& ds = last_scope(scopes);
+				if(ds.size() < 2) {
+					TypeError(ds, ip, ops, "over excepts 2 elements, but got: ");
+				}
+				ds.push_back(ds[ds.size() - 2]);
+				break;
+			}
+			case OP_TYPE::OP_ROT:
+			{
+				DataStack& ds = last_scope(scopes);
 				if(ds.size() < 3) {
-					TypeError(ds, ip, ops, "over excepts 3 elements, but got: ");
+					TypeError(ds, ip, ops, "rot excepts 3 elements, but got: ");
 				}
 				ds.push_back(ds[ds.size() - 3]);
 				break;
@@ -596,7 +606,7 @@ void typecheck_program(ops_list* ops) {
 				Token tok = cur_dump->tok;
 				std::cout << "??? dump at " << tok.line << "." << tok.col << ": ";
 				show_sdata(last_scope(scopes));
-				exit(0);
+				exit(1);
 				break;
 			}
 			case OP_TYPE::PUSH_STR:
@@ -628,20 +638,8 @@ void typecheck_program(ops_list* ops) {
 	if(ds.size() > 0) {
 		std::cout << "at end of the program except INT, but got unhandled data: ";
 		show_sdata(ds);
+		exit(1);
 	}
-}
-
-std::string string_to_hex(const std::string& input)
-{
-    static const char hex_digits[] = "0123456789ABCDEF";
-    std::string output;
-    output.reserve(input.length() * 2);
-    for (unsigned char c : input)
-    {
-        output.push_back(hex_digits[c >> 4]);
-        output.push_back(hex_digits[c & 15]);
-    }
-    return output;
 }
 
 class Generator {
@@ -653,11 +651,15 @@ private:
 	ops_list* m_ops;
 	std::stringstream m_output;
 	std::vector<String> m_strings;
+	std::vector<Procedure> m_procs;
 	int m_memsize = 96;
 public:
 	explicit Generator(ops_list* _ops) {
 		m_ops = _ops;
 	}
+	void set_procs(std::vector<Procedure> _procs) {
+		m_procs = _procs;
+	} 
 	void set_memsize(int nmemsize) {
 		m_memsize = nmemsize;
 	}
@@ -668,7 +670,7 @@ public:
 		m_output << "addr_" << ip << ":";
 		OP cur_op = m_at(ip);
 		Token tok = cur_op.tok;
-		m_output << " ; " << tok.line << ":" << tok.col;
+		m_output << "            ; " << tok.line << ":" << tok.col;
 		m_output << " `" << op_to_string(cur_op.type) << "`";
 		m_output << "\n";
 	}
@@ -795,8 +797,30 @@ public:
 	void m_gen_end(int ip) {
 		m_new_addr(ip);
 		OP cur = m_at(ip);
-		if(cur.operand1 != -1) {
+		if(cur.operand1 != -1 && cur.operand1 != -2) {
 			m_output << "    jmp addr_" << cur.operand1 << "\n";
+			return;
+		}
+		if(cur.operand1 == -2) {
+			Procedure proc_ret = m_procs[cur.operand2];
+			int rsize = proc_ret.outs.size();
+			if(rsize == 1) {
+				m_output << "    pop eax\n";
+			}
+			else if(rsize == 0) {}
+			else if(rsize == 2) {
+				m_output << "    pop eax\n";
+				m_output << "    pop ebx\n";
+			}
+			else if(rsize == 3) {
+				m_output << "    pop eax\n";
+				m_output << "    pop ebx\n";
+				m_output << "    pop edx\n";
+			} else {
+				assert(false); // unreacheable
+			}
+			m_output << "    pop ebp\n";
+			m_output << "    ret\n";
 		}
 	}
 	void m_gen_else(int ip) {
@@ -920,9 +944,13 @@ public:
 		m_output << "    mov ebx, dword [ecx]\n";
 		m_output << "    push ebx\n";
 	}
-	void m_gen_over(int ip) {
+	void m_gen_rot(int ip) {
 		m_new_addr(ip);
 		m_output << "    push dword [esp+8]\n";
+	}
+	void m_gen_over(int ip) {
+		m_new_addr(ip);
+		m_output << "    push dword [esp+4]\n";
 	}
 	void m_gen_swap(int ip) {
 		m_new_addr(ip);
@@ -963,6 +991,47 @@ public:
 			return;
 		}
 		m_output << "    push str_" << it.index << "\n";
+	}
+	void m_gen_skip_proc(int ip) {
+		m_new_addr(ip);
+		m_output << "    jmp addr_" << m_at(ip).operand1 + 1 << "\n";
+	}
+	void m_gen_call(int ip) {
+		m_new_addr(ip);
+		OP cur = m_at(ip);
+		Token tok = cur.tok;
+		std::string pname = tok.value.value();
+		Procedure proc = proc_lookup(m_procs, pname).value();
+		int stack_allign = proc.ins.size();
+		int rsize = proc.outs.size();
+		m_output << "    call addr_" << proc.ip << "\n";
+		m_output << "    add esp, " << stack_allign * 4 << "\n";
+		if(rsize == 1) {
+			m_output << "    push eax\n";
+		}
+		else if(rsize == 0) {}
+		else if(rsize == 2) {
+			m_output << "    push ebx\n";
+			m_output << "    push eax\n";
+		}
+		else if(rsize == 3) {
+			m_output << "    push ecx\n";
+			m_output << "    push ebx\n";
+			m_output << "    push eax\n";
+		} else {
+			assert(false); // unreacheable
+		}
+	}
+	void m_gen_proc(int ip) {
+		m_new_addr(ip);
+		std::string pname = m_at(ip).tok.value.value();
+		Procedure* proc = proc_lookup_rv(m_procs, pname);
+		proc->ip = ip;
+		m_output << "    push ebp\n";
+		m_output << "    mov ebp, esp\n";
+		for(int i = proc->ins.size() - 1;i > -1;--i) {
+			m_output << "    push dword [ebp+" << i * 4 + 8 << "]\n";
+		}
 	}
 	std::string generate() {
 		m_output << "section .text\n\n";
@@ -1087,6 +1156,9 @@ public:
 				case OP_TYPE::OP_OVER:
 					m_gen_over(ip);
 					break;
+				case OP_TYPE::OP_ROT:
+					m_gen_rot(ip);
+					break;
 				case OP_TYPE::PUSH_STR:
 					m_gen_push_str(ip);
 					break;
@@ -1098,6 +1170,15 @@ public:
 					break;
 				case OP_TYPE::OP_MEM:
 					m_gen_mem(ip);
+					break;
+				case OP_TYPE::OP_SKIP_PROC:
+					m_gen_skip_proc(ip);
+					break;
+				case OP_TYPE::OP_CALL:
+					m_gen_call(ip);
+					break;
+				case OP_TYPE::OP_PROC:
+					m_gen_proc(ip);
 					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);

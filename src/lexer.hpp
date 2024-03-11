@@ -57,6 +57,10 @@ enum class TokenType {
     in,
     bake,
     memory,
+    rot,
+    type_int,
+    type_bool,
+    type_ptr,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -162,6 +166,14 @@ std::string tok_to_string(const TokenType type)
         return "`--`";
     case TokenType::memory:
         return "`memory`";
+    case TokenType::rot:
+        return "`rot`";
+    case TokenType::type_int:
+        return "`int`";
+    case TokenType::type_bool:
+        return "`bool`";
+    case TokenType::type_ptr:
+        return "`ptr`";
     }
     assert(false);
 }
@@ -205,6 +217,8 @@ bool is_valid_id_ns(char c) {
     case '?': case '_':
     case '.': case '-':
     case '$': case '=':
+    case '[': case ']':
+    case '+':
         return true;
     }
     return false;
@@ -374,6 +388,22 @@ public:
                     tokens.push_back({ .type = TokenType::memory, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
+                else if(buf == "rot") {
+                    tokens.push_back({ .type = TokenType::rot, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "int") {
+                    tokens.push_back({ .type = TokenType::type_int, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "bool") {
+                    tokens.push_back({ .type = TokenType::type_bool, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "ptr") {
+                    tokens.push_back({ .type = TokenType::type_ptr, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
                 else {
                     tokens.push_back({ .type = TokenType::ident, .line = line_count, .col = m_col - (int)buf.size(), .value = buf });
                     buf.clear();
@@ -447,7 +477,8 @@ public:
             else if(peek().value() == '\'') {
                 consume();
                 if(!peek().has_value()) {
-                    std::cout << "unclosed '\n";
+                    std::cout << "except second ' but fount end of file\n";
+                    exit(1);
                 }
                 char c = consume();
                 if(c == '\'') {
@@ -456,7 +487,8 @@ public:
                     }
                 }
                 if(!peek().has_value() || peek().value() != '\'') {
-                    std::cout << "unclosed '\n";
+                    std::cout << "unclosed ', except ' buf found `" << peek().value() << "`\n";
+                    exit(1);
                 }
                 tokens.push_back({ .type = TokenType::int_lit, .line = line_count , .col = m_col - (int)buf.size(), .value = std::to_string((int)c) });
                 buf.clear();

@@ -10,6 +10,91 @@
 #include "ops.hpp"
 #include "lexer.hpp"
 
+enum class DataType {
+	_int,
+	_bool,
+	ptr,
+};
+
+std::string dt_tostr(DataType dt) {
+	switch(dt) {
+		case DataType::_int:
+			return "INT";
+		case DataType::_bool:
+			return "BOOL";
+		case DataType::ptr:
+			return "PTR";
+	}
+	assert(false);
+	return "";
+}
+
+struct DataElement {
+	DataType type;
+	friend std::ostream& operator<<(std::ostream& out, DataElement& de) {
+        out << "<" << dt_tostr(de.type) << ">";
+        return out;
+    }
+    friend bool operator==(const DataElement one, const DataElement two) {
+        return one.type == two.type;
+    }
+};
+
+DataElement type_to_dt(TokenType tp) {
+	switch(tp) {
+		case TokenType::type_int:
+			return { .type = DataType::_int };
+		case TokenType::type_bool:
+			return { .type = DataType::_bool };
+		case TokenType::type_ptr:
+			return { .type = DataType::ptr };
+	}
+	std::cout << "AssertionError at TokenType to DataType\n";
+	std::cout << "except Token Type but got " << tok_to_string(tp) << "\n";
+	exit(1);
+}
+
+#define DataStack std::vector<DataElement>
+
+void show_sdata(DataStack& ds) {
+	int size = ds.size();
+	std::cout << "[";
+	for(int i = 0;i < size;++i) {
+		std::cout << ds[i];
+		if(i != (size - 1)) {
+			std::cout << ", ";
+		}
+	}
+	std::cout << "]\n";
+}
+
+struct Procedure {
+	std::string name;
+	DataStack ins;
+	DataStack outs;
+	Token def;
+	int ip;
+};
+
+std::optional<Procedure> proc_lookup(std::vector<Procedure>& m_procs, std::string& name) {
+	for(int i = 0;i < m_procs.size();++i) {
+		if(name == m_procs[i].name) {
+			return m_procs[i];
+		}
+	}
+	return std::nullopt;
+}
+
+Procedure* proc_lookup_rv(std::vector<Procedure>& m_procs, std::string& name) {
+	for(int i = 0;i < m_procs.size();++i) {
+		if(name == m_procs[i].name) {
+			return &(m_procs[i]);
+		}
+	}
+	assert(false); // at rvalue unreacheable
+	return nullptr;
+}
+
 class Parser {
 private:
 	struct Macro {
@@ -25,10 +110,14 @@ private:
 	std::vector<std::string> m_includes;
 	std::vector<Macro> m_macroses;
 	std::vector<Memory> m_memories;
+	std::vector<Procedure> m_procs;
 	int m_mem_offset = 0;
 public:
 	int get_memsize() {
 		return m_mem_offset;
+	}
+	std::vector<Procedure> get_procs() {
+		return m_procs;
 	}
 	void ParsingError(Token tok, const char* err) {
 		std::cout << "Parsing Error at " << tok.line;
@@ -39,7 +128,8 @@ public:
 		token_list& m_tokens = toks;
 		ops_list* opsl = new std::vector<OP*>();
 		int size = m_tokens.size();
-		for(int i = 0;i < size;++i) {
+		int real_ip = 0;
+		for(int i = 0;i < size;++i, ++real_ip) {
 			switch(m_tokens[i].type) {
 				case TokenType::int_lit:
 					opsl->push_back(new OP(OP_TYPE::PUSH_INT, m_tokens[i], std::stoi(m_tokens[i].value.value())));
@@ -109,12 +199,15 @@ public:
 					break;
 				case TokenType::cast_int:
 					opsl->push_back(new OP(OP_TYPE::CAST_INT, m_tokens[i]));
+					real_ip -= 2;
 					break;
 				case TokenType::cast_bool:
 					opsl->push_back(new OP(OP_TYPE::CAST_BOOL, m_tokens[i]));
+					real_ip -= 2;
 					break;
 				case TokenType::cast_ptr:
 					opsl->push_back(new OP(OP_TYPE::CAST_PTR, m_tokens[i]));
+					real_ip -= 2;
 					break;
 				case TokenType::malloc:
 					opsl->push_back(new OP(OP_TYPE::OP_MALLOC, m_tokens[i]));
@@ -221,25 +314,33 @@ public:
 							break;
 						}
 					}
-					if(!finded) {
-						Memory mem;
-						bool mfinded = false;
-						std::string cname = m_tokens[i].value.value();
-						for(int i = 0;i < m_memories.size();++i) {
-							if(cname == m_memories[i].name) {
-								mfinded = true;
-								mem = m_memories[i];
-								break;
-							}
+					if(finded) {
+						ops_list* compiled_macro = parse(macro._tokens);
+						opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
+						break;
+					}
+
+					Memory mem;
+					bool mfinded = false;
+					for(int i = 0;i < m_memories.size();++i) {
+						if(cname == m_memories[i].name) {
+							mfinded = true;
+							mem = m_memories[i];
+							break;
 						}
-						if(!mfinded) {
-							ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
-						}
+					}
+					if(mfinded) {
 						opsl->push_back(new OP(OP_TYPE::OP_MEM, m_tokens[i], mem.offset));
 						break;
 					}
-					ops_list* compiled_macro = parse(macro._tokens);
-					opsl->insert(opsl->end(), compiled_macro->begin(), compiled_macro->end() - 1);
+
+					std::optional<Procedure> proc = proc_lookup(m_procs, cname);
+					if(proc.has_value()) {
+						opsl->push_back(new OP(OP_TYPE::OP_CALL, m_tokens[i], proc.value().ip));
+						break;
+					}
+
+					ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
 					break;
 				}
 				case TokenType::iinclude:
@@ -274,6 +375,9 @@ public:
 				case TokenType::mod:
 					opsl->push_back(new OP(OP_TYPE::OP_MOD, m_tokens[i]));
 					break;
+				case TokenType::rot:
+					opsl->push_back(new OP(OP_TYPE::OP_ROT, m_tokens[i]));
+					break;
 				case TokenType::memory:
 				{
 					if(i + 3 > m_tokens.size()) {
@@ -294,6 +398,55 @@ public:
 					Memory mem = { .name = mname , .offset = m_mem_offset };
 					m_mem_offset += size;
 					m_memories.push_back(mem);
+					break;
+				}
+				case TokenType::proc:
+				{
+					if(i + 3 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at procedure definition except procedure name and ins, outs, and in\n"); 
+					}
+					if(m_tokens[i + 1].type != TokenType::ident) {
+						ParsingError(m_tokens[i+1], ("at procedure definition except procedure name but got " + tok_to_string(m_tokens[i + 1].type) + "\n").c_str());
+					}
+					Token ProcDef = m_tokens[i];
+					i += 1; // skip `proc` token
+					std::string pname = m_tokens[i++].value.value();
+					std::optional<Procedure> prc = proc_lookup(m_procs, pname);
+					if(prc.has_value()) {
+						std::cout << "at " << ProcDef.line << "." << ProcDef.col;
+						std::cout << " procedure `" << pname << "` redefinition.\n";
+						std::cout << "NOTE: first defenition at " << prc.value().def.line << prc.value().def.col << "\n";
+						exit(1);
+					}
+					DataStack _outs;
+					DataStack _ins;
+					while(m_tokens[i].type != TokenType::bake) {
+						if(m_tokens[i].type == TokenType::end || m_tokens[i].type == TokenType::in) {
+							ParsingError(ProcDef, "except -- after proc definition with types\n");
+						}
+						_ins.push_back(type_to_dt(m_tokens[i].type));
+						i += 1;
+					}
+					i += 1;
+					while(m_tokens[i].type != TokenType::in) {
+						if(m_tokens[i].type == TokenType::end) {
+							ParsingError(ProcDef, "except `in` after proc definition\n");
+						}
+						_outs.push_back(type_to_dt(m_tokens[i].type));
+						i += 1;
+					}
+					assert(m_tokens[i].type == TokenType::in);
+					if(_outs.size() > 3) {
+						ParsingError(m_tokens[i], "procedures outputs length > 3 (after --).\n");
+					}
+					if(_ins.size() > 24) {
+						ParsingError(m_tokens[i], "procedures inputs length > 24 (after proc).\n");
+					}
+					m_tokens[i].value = pname;
+					opsl->push_back(new OP(OP_TYPE::OP_SKIP_PROC, m_tokens[i]));
+					opsl->push_back(new OP(OP_TYPE::OP_PROC, m_tokens[i]));
+					Procedure proc = {pname, _ins, _outs, ProcDef, real_ip};
+					m_procs.push_back(proc);
 					break;
 				}
 				default:

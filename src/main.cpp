@@ -28,10 +28,11 @@ int main(int argc, const char** argv) {
     std::vector<Token> tokens = lexer.lex();
     Parser parser;
     ops_list* opsl = parser.parse(tokens);
-    typecheck_program(opsl);
-    crossref_check_blocks(opsl);
+    typecheck_program(opsl, parser.get_procs());
+    crossref_check_blocks(opsl, parser.get_procs());
     Generator generator(opsl);
     generator.set_memsize(parser.get_memsize());
+    generator.set_procs(parser.get_procs());
     const std::string out_asm = generator.generate();
     std::fstream file("output.asm", std::ios::out);
     file << out_asm;
