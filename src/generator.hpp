@@ -48,7 +48,7 @@ bool typecheckds(DataStack& ds, DataStack& extypes) {
 }
 
 
-const std::vector<const char*> std_externs = {
+std::vector<std::string> std_externs = {
 	"ExitProcess@4",
 	"printf",
 	"malloc",
@@ -632,6 +632,19 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 				last_scope(scopes).push_back({ .type = DataType::ptr });
 				break;
 			}
+			case OP_TYPE::OP_C_CALL:
+			{
+				DataStack& ds = last_scope(scopes);
+				int argc = (*ops)[ip]->operand1;
+				if(ds.size() < argc) {
+					TypeError(ds, ip, ops, "not enought arguments for c_call(...)");
+				}
+				for(int i = 0;i < argc;++i) {
+					ds.pop_back();
+				}
+				ds.push_back({ .type = DataType::_int });
+
+			}
 		}
 	}
 	DataStack& ds = last_scope(scopes);
@@ -1033,11 +1046,25 @@ public:
 			m_output << "    push dword [ebp+" << i * 4 + 8 << "]\n";
 		}
 	}
-	std::string generate() {
-		m_output << "section .text\n\n";
+	void m_gen_c_call(int ip) {
+		m_new_addr(ip);
+		OP cur = m_at(ip);
+		std::string fname = cur.tok.value.value();
+		bool finded = false;
 		for(int i = 0;i < std_externs.size();++i) {
-			m_output << "extern " << std_externs[i] << "\n";
+			if(fname == std_externs[i]) {
+				finded = true;
+				break;
+			}
 		}
+		if(!finded) {
+			std_externs.push_back(fname);
+		}
+		m_output << "    call " << fname << "\n";
+		m_output << "    add esp, " << cur.operand1 << "\n";
+	}
+	std::string generate() {
+		m_output << "section .text\n";
 		m_output << "\n";
 		m_output << "global main\n\n";
 		m_output << "main:\n";
@@ -1180,10 +1207,18 @@ public:
 				case OP_TYPE::OP_PROC:
 					m_gen_proc(ip);
 					break;
+				case OP_TYPE::OP_C_CALL:
+					m_gen_c_call(ip);
+					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);
 			}
 		}
+		m_output << "\n";
+		for(int i = 0;i < std_externs.size();++i) {
+			m_output << "extern " << std_externs[i] << "\n";
+		}
+		m_output << "\n";
 		m_output << "\nsection .bss\n";
 		m_output << "    mem: resb " << m_memsize << "\n";
 		m_output << "\nsection .data\n";

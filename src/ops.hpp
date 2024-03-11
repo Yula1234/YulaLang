@@ -57,6 +57,7 @@ enum class OP_TYPE {
 	OP_SKIP_PROC,
 	OP_CALL,
 	OP_PROC,
+	OP_C_CALL,
 };
 
 std::string op_to_string(OP_TYPE opt) {
@@ -159,6 +160,8 @@ std::string op_to_string(OP_TYPE opt) {
 		return "OP_CALL";
 	case OP_TYPE::OP_PROC:
 		return "OP_PROC";
+	case OP_TYPE::OP_C_CALL:
+		return "OP_C_CALL";
 	}
 	assert(false);
 	return "";

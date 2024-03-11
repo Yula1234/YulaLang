@@ -449,6 +449,32 @@ public:
 					m_procs.push_back(proc);
 					break;
 				}
+				case TokenType::c_call1:
+				case TokenType::c_call2:
+				case TokenType::c_call3:
+				{
+					if(i + 1 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at c_call(1) except c_function name but got nothing\n"); 
+					}
+					if(m_tokens[i + 1].type != TokenType::ident) {
+						ParsingError(m_tokens[i+1], ("at c_call(1) except c_function name but got " + tok_to_string(m_tokens[i + 1].type) + "\n").c_str());
+					}
+					std::string cfname = m_tokens[i + 1].value.value();
+					int argc;
+					switch(m_tokens[i].type) {
+					case TokenType::c_call1:
+						argc = 1;
+						break;
+					case TokenType::c_call2:
+						argc = 2;
+						break;
+					case TokenType::c_call3:
+						argc = 3;
+						break;
+					}
+					opsl->push_back(new OP(OP_TYPE::OP_C_CALL, m_tokens[++i], argc));
+					break;
+				}
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}

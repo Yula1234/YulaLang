@@ -61,6 +61,9 @@ enum class TokenType {
     type_int,
     type_bool,
     type_ptr,
+    c_call1,
+    c_call2,
+    c_call3,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -174,6 +177,12 @@ std::string tok_to_string(const TokenType type)
         return "`bool`";
     case TokenType::type_ptr:
         return "`ptr`";
+    case TokenType::c_call1:
+        return "`c_call(1)`";
+    case TokenType::c_call2:
+        return "`c_call(2)`";
+    case TokenType::c_call3:
+        return "`c_call(3)`";
     }
     assert(false);
 }
@@ -402,6 +411,18 @@ public:
                 }
                 else if(buf == "ptr") {
                     tokens.push_back({ .type = TokenType::type_ptr, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "c_call(1)") {
+                    tokens.push_back({ .type = TokenType::c_call1, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "c_call(2)") {
+                    tokens.push_back({ .type = TokenType::c_call2, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "c_call(3)") {
+                    tokens.push_back({ .type = TokenType::c_call3, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
                 else {
