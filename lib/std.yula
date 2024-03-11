@@ -5,6 +5,10 @@ macro stderr 2 end
 macro EXIT_SUCCESS 0 end
 macro EXIT_FAILURE 1 end
 
+macro SPACE 32 end
+
+macro NULL 0 cast(ptr) end
+
 macro @ptr @32 cast(ptr) end
 macro !ptr cast(int) !32 end
 
@@ -20,25 +24,22 @@ macro ptr_diff
   -
 end
 
-macro strlen
+proc strlen ptr -- int in
   dup
   while dup @8 0 = not do 1 + end
   swap ptr_diff
 end
 
-macro fputs
+proc fputs ptr int -- in
 	// excepts string on the stack
 	// [ptr:string data, int:file descriptor]
 	// fd len data fd
 	swap dup strlen
-	swap over write drop drop
+	swap rot write drop drop
 end
 
-macro puts
-	// excepts string on the stack
-	// [ptr:string data]
-	stdout fputs
-end
+proc puts ptr -- in stdout fputs end
+proc eputs ptr -- in stderr fputs end
 
 macro endl "\n" end
 
@@ -47,6 +48,19 @@ macro malloc4 4 malloc end
 macro malloc2 2 malloc end
 
 macro malloc1 1 malloc end
+
+macro inc32 dup @int 1 + !int end
+macro dec32 dup @int 1 - !int end
+
+macro ptr+
+	swap dup @int rot
+	+ !int drop
+end
+
+macro ptr-
+	swap dup @int rot
+	- !int drop
+end
 
 macro todo!
 	"TODO\n" puts
@@ -57,12 +71,13 @@ macro sizeof(int)  4 end
 macro sizeof(bool) 4 end
 macro sizeof(ptr)  4 end
 
-macro cstr_to_str
+proc cstr_to_str ptr -- int ptr in
 	// ins [ptr] : outs[int, ptr]
 	dup strlen swap
 end
 
-macro puti print endl puts end
+proc puti int -- in print endl puts end
+
 
 // struct Str
 
@@ -73,7 +88,7 @@ macro sizeof(Str) Str.data 4 + end
 memory str_len 4 end
 memory str_data 4 end
 
-macro !Str
+proc !Str ptr ptr -- ptr in
 	// ins [ptr, ptr] : outs [ptr]
 	swap cstr_to_str
 	str_data swap !ptr
@@ -82,21 +97,36 @@ macro !Str
 	dup Str.data + str_data @ptr !ptr
 end
 
-macro @Str.count
+proc @Str.count ptr -- int in
 	// ins [Str] : outs [int]
 	// reads first 4 bytes of struct
 	// where stored size
 	@int
 end
 
-macro @Str.data
+proc @Str.data ptr -- ptr in
 	// ins [Str] : outs [ptr]
 	// reads data field of Str struct
 	Str.data + @ptr
 end
 
-macro @Str
+proc @Str ptr -- int ptr in
 	dup @Str.count
 	swap @Str.data
 	swap
 end
+
+proc !empty_Str ptr -- ptr in
+	// ins [ptr] : outs [Str]
+	dup 0 !int
+	dup Str.data + NULL !ptr
+end
+
+proc str_cut ptr -- ptr in
+	// ins [Str] : outs [Str]
+	// Str
+	dup dec32
+	dup Str.data + inc32
+end
+
+// end of struct Str
