@@ -118,14 +118,41 @@ private:
 		std::string name;
 		token_list _tokens;
 	};
+	struct Constant {
+		std::string name;
+		Token def;
+		int value;
+		DataType type;
+	};
 	std::vector<std::string> m_includes;
 	std::vector<Macro> m_macroses;
 	std::vector<Memory> m_memories;
 	std::vector<Procedure> m_procs;
+	std::vector<Constant> m_constants;
 	int m_mem_offset = 0;
 public:
 	int get_memsize() {
 		return m_mem_offset;
+	}
+	std::optional<Constant> const_lookup(std::string name) {
+		for(int i = 0;i < m_constants.size();++i) {
+			if(m_constants[i].name == name) {
+				return m_constants[i];
+			}
+		}
+		return std::nullopt;
+	}
+	int expand_const(std::string name) {
+		std::optional<Constant> cnst = const_lookup(name);
+		assert(cnst.has_value());
+		return cnst.value().value;
+	}
+	OP* compile_const(std::optional<Constant> cnst, Token tok) {
+		assert(cnst.has_value());
+		if(cnst.value().type == DataType::_int) {
+			return new OP(OP_TYPE::PUSH_INT, tok, cnst.value().value);
+		}
+		assert(false);
 	}
 	std::vector<Procedure> get_procs() {
 		return m_procs;
@@ -171,19 +198,9 @@ public:
 				}
 				case TokenType::ident:
 				{
-					Macro macro;
-					bool finded = false;
-					std::string cname = m_tokens[ip].value.value();
-					for(int i = 0;i < m_macroses.size();++i) {
-						if(cname == m_macroses[i].name) {
-							finded = true;
-							macro = m_macroses[i];
-							break;
-						}
-					}
-					if(finded) {
-						eval_result m_er = eval_const_value(macro._tokens, 0, false);
-						res.stack.insert(res.stack.end(), m_er.stack.begin(), m_er.stack.end());
+					std::optional<Constant> cnst = const_lookup(m_tokens[ip].value.value());
+					if(cnst.has_value()) {
+						res.stack.push_back(cnst.value().value);
 						break;
 					}
 					ParsingError(m_tokens[ip], ("at constant unkown word `" + m_tokens[ip].value.value() + "`\n").c_str());
@@ -431,6 +448,12 @@ public:
 						break;
 					}
 
+					std::optional<Constant> cnst = const_lookup(cname);
+					if(cnst.has_value()) {
+						opsl->push_back(compile_const(cnst, m_tokens[i]));
+						break;
+					}
+
 					ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
 					break;
 				}
@@ -477,9 +500,6 @@ public:
 					if(m_tokens[i + 1].type != TokenType::ident) {
 						ParsingError(m_tokens[i+1], ("at memory definition except memory name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
 					}
-					if(m_tokens[i + 2].type != TokenType::int_lit) {
-						ParsingError(m_tokens[i+1], ("at memory definition except memory size but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
-					}
 					std::string mname = m_tokens[i + 1].value.value();
 					eval_result er = eval_const_value(m_tokens, i + 2, true);
 					i += er.diff + 3;
@@ -494,6 +514,23 @@ public:
 						cp->local_mems.push_back(mem);
 						cp->local_mem_cap += size;
 					}
+					break;
+				}
+				case TokenType::_const:
+				{
+					if(i + 3 > m_tokens.size()) {
+						ParsingError(m_tokens[i], "at constant definition except const name, value and end"); 
+					}
+					if(m_tokens[i + 1].type != TokenType::ident) {
+						ParsingError(m_tokens[i+1], ("at constant definition except const name but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
+					}
+					Token ConstDef = m_tokens[i];
+					std::string mname = m_tokens[i + 1].value.value();
+					eval_result er = eval_const_value(m_tokens, i + 2, true);
+					i += er.diff + 3;
+					int _value = er.value;
+					Constant cnst = { .name = mname , .def = ConstDef, .value = _value, .type = er.type };
+					m_constants.push_back(cnst);
 					break;
 				}
 				case TokenType::proc:

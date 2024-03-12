@@ -61,6 +61,7 @@ enum class TokenType {
     c_call1,
     c_call2,
     c_call3,
+    _const,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -174,6 +175,8 @@ std::string tok_to_string(const TokenType type)
         return "`c_call(2)`";
     case TokenType::c_call3:
         return "`c_call(3)`";
+    case TokenType::_const:
+        return "`const`";
     }
     assert(false);
 }
@@ -402,6 +405,10 @@ public:
                 }
                 else if(buf == "c_call(3)") {
                     tokens.push_back({ .type = TokenType::c_call3, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "const") {
+                    tokens.push_back({ .type = TokenType::_const, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
                 else {

@@ -1,19 +1,19 @@
-macro stdin 0 end
-macro stdout 1 end
-macro stderr 2 end
+const stdin 0 end
+const stdout 1 end
+const stderr 2 end
 
-macro EXIT_SUCCESS 0 end
-macro EXIT_FAILURE 1 end
+const EXIT_SUCCESS 0 end
+const EXIT_FAILURE 1 end
 
-macro SPACE 32 end
+const SPACE 32 end
 
 macro NULL 0 cast(ptr) end
 
-macro @ptr @32 cast(ptr) end
-macro !ptr cast(int) !32 end
+proc @ptr ptr -- ptr in @32 cast(ptr) end
+proc !ptr ptr ptr -- in cast(int) !32 end
 
-macro @bool @8 cast(bool) end
-macro !bool cast(int) !8 end
+proc @bool ptr -- bool in @8 cast(bool) end
+proc !bool ptr bool -- in cast(int) !8 end
 
 macro @int @32 end
 macro !int !32 end
@@ -28,6 +28,14 @@ proc strlen ptr -- int in
   dup
   while dup @8 0 = not do 1 + end
   swap ptr_diff
+end
+
+proc write int ptr int -- int in
+	c_call(3) write
+end
+
+proc malloc int -- ptr in
+	c_call(1) malloc cast(ptr)
 end
 
 proc fputs ptr int -- in
@@ -49,15 +57,15 @@ macro malloc2 2 malloc end
 
 macro malloc1 1 malloc end
 
-macro inc32 dup @int 1 + !int end
-macro dec32 dup @int 1 - !int end
+proc inc32 ptr -- in dup @int 1 + !int end
+proc dec32 ptr -- in dup @int 1 - !int end
 
-macro ptr+
+proc ptr+ ptr int -- in
 	swap dup @int rot
 	+ !int drop
 end
 
-macro ptr-
+proc ptr- ptr int -- in
 	swap dup @int rot
 	- !int drop
 end
@@ -67,9 +75,9 @@ macro todo!
 	EXIT_FAILURE exit
 end
 
-macro sizeof(int)  4 end
-macro sizeof(bool) 4 end
-macro sizeof(ptr)  4 end
+const sizeof(int)  4 end
+const sizeof(bool) 4 end
+const sizeof(ptr)  4 end
 
 proc cstr_to_str ptr -- int ptr in
 	// ins [ptr] : outs[int, ptr]
@@ -81,20 +89,21 @@ proc puti int -- in print endl puts end
 
 // struct Str
 
-macro Str.count 0 end
-macro Str.data sizeof(ptr) end
-macro sizeof(Str) Str.data 4 + end
+const Str.count 0 end
+const Str.data sizeof(ptr) end
+const sizeof(Str) Str.data 4 + end
 
 memory str_len 4 end
 memory str_data 4 end
 
-proc !Str ptr ptr -- ptr in
+proc !Str ptr ptr -- in
 	// ins [ptr, ptr] : outs [ptr]
 	swap cstr_to_str
 	str_data swap !ptr
 	str_len swap !int
 	dup str_len @int !int
-	dup Str.data + str_data @ptr !ptr
+	dup Str.data + str_data
+	@ptr !ptr drop
 end
 
 proc @Str.count ptr -- int in
@@ -113,7 +122,6 @@ end
 proc @Str ptr -- int ptr in
 	dup @Str.count
 	swap @Str.data
-	swap
 end
 
 proc !empty_Str ptr -- ptr in
