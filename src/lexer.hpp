@@ -31,10 +31,8 @@ enum class TokenType {
     ffalse,
     cast_bool,
     cast_int,
-    malloc,
     store8,
     load8,
-    free,
     cast_ptr,
     dup2,
     bor,
@@ -45,7 +43,6 @@ enum class TokenType {
     over,
     dump,
     string_lit,
-    write,
     macro,
     iinclude,
     store16,
@@ -123,8 +120,6 @@ std::string tok_to_string(const TokenType type)
         return "`cast(bool)`";
     case TokenType::cast_ptr:
         return "`cast(ptr)`";
-    case TokenType::malloc:
-        return "`malloc`";
     case TokenType::store8:
         return "`!8`";
     case TokenType::load8:
@@ -137,8 +132,6 @@ std::string tok_to_string(const TokenType type)
         return "`!32`";
     case TokenType::load32:
         return "`@32`";
-    case TokenType::free:
-        return "`free`";
     case TokenType::dup2:
         return "`free`";
     case TokenType::bor:
@@ -153,8 +146,6 @@ std::string tok_to_string(const TokenType type)
         return "`swap`";
     case TokenType::over:
         return "`over`";
-    case TokenType::write:
-        return "`write`";
     case TokenType::macro:
         return "`macro`";
     case TokenType::iinclude:
@@ -325,14 +316,6 @@ public:
                     tokens.push_back({ .type = TokenType::cast_ptr, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
-                else if(buf == "malloc") {
-                    tokens.push_back({ .type = TokenType::malloc, .line = line_count, .col = m_col - (int)buf.size() });
-                    buf.clear();
-                }
-                else if(buf == "free") {
-                    tokens.push_back({ .type = TokenType::free, .line = line_count, .col = m_col - (int)buf.size() });
-                    buf.clear();
-                }
                 else if(buf == "!8") {
                     tokens.push_back({ .type = TokenType::store8, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
@@ -371,10 +354,6 @@ public:
                 }
                 else if(buf == "???") {
                     tokens.push_back({ .type = TokenType::dump, .line = line_count, .col = m_col - (int)buf.size() });
-                    buf.clear();
-                }
-                else if(buf == "write") {
-                    tokens.push_back({ .type = TokenType::write, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
                 else if(buf == "macro") {

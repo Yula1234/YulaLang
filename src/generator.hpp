@@ -51,9 +51,6 @@ bool typecheckds(DataStack& ds, DataStack& extypes) {
 std::vector<std::string> std_externs = {
 	"ExitProcess@4",
 	"printf",
-	"malloc",
-	"free",
-	"write"
 };
 
 
@@ -168,6 +165,7 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 	scopes.push_back(new DataStack);
 	std::vector<OP*> bstack;
 	std::vector<int> ifsizes;
+	Procedure tcproc = {};
 	bool is_proc = false;
 	for(int ip = 0;ip < ops->size();++ip) {
 		switch((*ops)[ip]->type) {
@@ -181,6 +179,7 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 				OP* cur = (*ops)[ip];
 				DataStack& ds = last_scope(scopes);
 				Procedure proc = proc_lookup(m_procs, cur->tok.value.value()).value();
+				tcproc = proc;
 				ds.insert(ds.end(), proc.ins.begin(), proc.ins.end());
 				break;
 			}
@@ -331,6 +330,14 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 			case OP_TYPE::OP_END:
 			{
 				if(is_proc && bstack.size() == 0) {
+					DataStack& ds = last_scope(scopes);
+					if((!typecheckds(ds, tcproc.outs)) || ds.size() != tcproc.outs.size()) {
+						std::cout << "at " << tcproc.def.line << "." << tcproc.def.col;
+						std::cout << " at end of the procedure except types:\n";
+						show_sdata(tcproc.outs);
+						std::cout << "but got: \n";
+						show_sdata(ds);
+					}
 					scopes.pop_back();
 					is_proc = false;
 				} else {
@@ -477,25 +484,6 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 				ops->erase(ops->begin() + ip--);
 				break;
 			}
-			case OP_TYPE::OP_MALLOC:
-			{
-				DataStack& ds = last_scope(scopes);
-				if(!typecheck(ds, 1, DataType::_int)) {
-					TypeError(ds, ip, ops, "malloc excepts types [INT], but got: ");
-				}
-				ds.pop_back();
-				ds.push_back({ .type = DataType::ptr });
-				break;
-			}
-			case OP_TYPE::OP_FREE:
-			{
-				DataStack& ds = last_scope(scopes);
-				if(!typecheck(ds, 1, DataType::ptr)) {
-					TypeError(ds, ip, ops, "free excepts types [PTR], but got: ");
-				}
-				ds.pop_back();
-				break;
-			}
 			case OP_TYPE::OP_STORE8:
 			{
 				DataStack& ds = last_scope(scopes);
@@ -613,18 +601,6 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 			{
 				DataStack& ds = last_scope(scopes);
 				ds.push_back({ .type = DataType::ptr });
-				break;
-			}
-			case OP_TYPE::OP_WRITE:
-			{
-				DataStack& ds = last_scope(scopes);
-				if(!typecheck(ds, 3, DataType::_int, DataType::ptr, DataType::_int)) {
-					TypeError(ds, ip, ops, "write excepts types [INT, PTR, INT], but got: ");
-				}
-				ds.pop_back();
-				ds.pop_back();
-				ds.pop_back();
-				ds.push_back({ .type = DataType::_int });
 				break;
 			}
 			case OP_TYPE::OP_MEM:
@@ -907,17 +883,6 @@ public:
 		m_new_addr(ip);
 		m_output << "    push 0\n";
 	}
-	void m_gen_malloc(int ip) {
-		m_new_addr(ip);
-		m_output << "    call malloc\n";
-		m_output << "    add esp, 4\n";
-		m_output << "    push eax\n";
-	}
-	void m_gen_free(int ip) {
-		m_new_addr(ip);
-		m_output << "    call free\n";
-		m_output << "    add esp, 4\n";
-	}
 	void m_gen_store8(int ip) {
 		m_new_addr(ip);
 		m_output << "    pop ecx\n";
@@ -971,12 +936,6 @@ public:
 		m_output << "    pop ebx\n";
 		m_output << "    push eax\n";
 		m_output << "    push ebx\n";
-	}
-	void m_gen_write(int ip) {
-		m_new_addr(ip);
-		m_output << "    call write\n";
-		m_output << "    add esp, 12\n";
-		m_output << "    push eax\n";
 	}
 	void m_gen_mem(int ip) {
 		m_new_addr(ip);
@@ -1061,7 +1020,10 @@ public:
 			std_externs.push_back(fname);
 		}
 		m_output << "    call " << fname << "\n";
-		m_output << "    add esp, " << cur.operand1 << "\n";
+		if(cur.operand1 != 0) {
+			m_output << "    add esp, " << cur.operand1 * 4 << "\n";
+		}
+		m_output << "    push eax\n";
 	}
 	std::string generate() {
 		m_output << "section .text\n";
@@ -1138,12 +1100,6 @@ public:
 				case OP_TYPE::OP_FALSE:
 					m_gen_false(ip);
 					break;
-				case OP_TYPE::OP_MALLOC:
-					m_gen_malloc(ip);
-					break;
-				case OP_TYPE::OP_FREE:
-					m_gen_free(ip);
-					break;
 				case OP_TYPE::OP_STORE8:
 					m_gen_store8(ip);
 					break;
@@ -1188,9 +1144,6 @@ public:
 					break;
 				case OP_TYPE::PUSH_STR:
 					m_gen_push_str(ip);
-					break;
-				case OP_TYPE::OP_WRITE:
-					m_gen_write(ip);
 					break;
 				case OP_TYPE::OP_MOD:
 					m_gen_mod(ip);

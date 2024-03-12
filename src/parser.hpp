@@ -209,12 +209,6 @@ public:
 					opsl->push_back(new OP(OP_TYPE::CAST_PTR, m_tokens[i]));
 					real_ip -= 2;
 					break;
-				case TokenType::malloc:
-					opsl->push_back(new OP(OP_TYPE::OP_MALLOC, m_tokens[i]));
-					break;
-				case TokenType::free:
-					opsl->push_back(new OP(OP_TYPE::OP_FREE, m_tokens[i]));
-					break;
 				case TokenType::load8:
 					opsl->push_back(new OP(OP_TYPE::OP_LOAD8, m_tokens[i]));
 					break;
@@ -259,9 +253,6 @@ public:
 					break;
 				case TokenType::string_lit:
 					opsl->push_back(new OP(OP_TYPE::PUSH_STR, m_tokens[i]));
-					break;
-				case TokenType::write:
-					opsl->push_back(new OP(OP_TYPE::OP_WRITE, m_tokens[i]));
 					break;
 				case TokenType::macro:
 				{
