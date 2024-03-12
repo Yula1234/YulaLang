@@ -791,7 +791,7 @@ public:
 			return;
 		}
 		if(cur.operand1 == -2) {
-			Procedure proc_ret = m_procs[cur.operand2];
+			Procedure& proc_ret = m_procs[cur.operand2];
 			int rsize = proc_ret.outs.size();
 			if(rsize == 1) {
 				m_output << "    pop eax\n";
@@ -807,6 +807,9 @@ public:
 				m_output << "    pop edx\n";
 			} else {
 				assert(false); // unreacheable
+			}
+			if(proc_ret.local_mem_cap != 0) {
+				m_output << "    add esp, " << proc_ret.local_mem_cap << "\n";
 			}
 			m_output << "    pop ebp\n";
 			m_output << "    ret\n";
@@ -939,9 +942,20 @@ public:
 	}
 	void m_gen_mem(int ip) {
 		m_new_addr(ip);
-		m_output << "    mov ecx, mem\n";
-		m_output << "    add ecx, " << m_at(ip).operand1 << "\n";
-		m_output << "    push ecx\n";
+		OP cur = m_at(ip);
+		if(cur.operand2 == 0) {
+			m_output << "    mov ecx, mem\n";
+			m_output << "    add ecx, " << m_at(ip).operand1 << "\n";
+			m_output << "    push ecx\n";
+		}
+		else if(cur.operand2 == 1) {
+			m_output << "    mov edx, ebp\n";
+			m_output << "    sub edx, " << m_at(ip).operand1 + 4 << "\n";
+			m_output << "    push edx\n";
+		}
+		else {
+			assert(false); // unreacheable
+		}
 	}
 	void m_gen_push_str(int ip) {
 		m_new_addr(ip);
@@ -1001,6 +1015,9 @@ public:
 		proc->ip = ip;
 		m_output << "    push ebp\n";
 		m_output << "    mov ebp, esp\n";
+		if(proc->local_mem_cap != 0) {
+			m_output << "    sub esp, " << proc->local_mem_cap << "\n";
+		}
 		for(int i = proc->ins.size() - 1;i > -1;--i) {
 			m_output << "    push dword [ebp+" << i * 4 + 8 << "]\n";
 		}

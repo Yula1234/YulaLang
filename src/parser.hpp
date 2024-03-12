@@ -29,6 +29,13 @@ std::string dt_tostr(DataType dt) {
 	return "";
 }
 
+struct eval_result {
+	int value;
+	int diff;
+	DataType type;
+	std::vector<int> stack;
+};
+
 struct DataElement {
 	DataType type;
 	friend std::ostream& operator<<(std::ostream& out, DataElement& de) {
@@ -68,12 +75,20 @@ void show_sdata(DataStack& ds) {
 	std::cout << "]\n";
 }
 
+struct Memory {
+	std::string name;
+	int offset;
+	bool local;
+};
+
 struct Procedure {
 	std::string name;
 	DataStack ins;
 	DataStack outs;
 	Token def;
 	int ip;
+	int local_mem_cap;
+	std::vector<Memory> local_mems;
 };
 
 std::optional<Procedure> proc_lookup(std::vector<Procedure>& m_procs, std::string& name) {
@@ -103,10 +118,6 @@ private:
 		std::string name;
 		token_list _tokens;
 	};
-	struct Memory {
-		std::string name;
-		int offset;
-	};
 	std::vector<std::string> m_includes;
 	std::vector<Macro> m_macroses;
 	std::vector<Memory> m_memories;
@@ -124,11 +135,82 @@ public:
 		std::cout << "." << tok.col << ": " << err;
 		exit(1);
 	}
-	ops_list* parse(token_list toks) {
+	eval_result eval_const_value(token_list& m_tokens, int s_ip, bool s0) {
+		eval_result res = {0, {}};
+		for(int ip = s_ip;m_tokens[ip].type != TokenType::end && ip < m_tokens.size();++ip) {
+			res.diff = ip - s_ip;
+			switch(m_tokens[ip].type) {
+				case TokenType::int_lit:
+				{
+					res.stack.push_back(std::stoi(m_tokens[ip].value.value()));
+					break;
+				}
+				case TokenType::plus:
+				{
+					if(res.stack.size() < 2) {
+						ParsingError(m_tokens[ip], "not enought arguments for +\n");
+					}
+					int one = res.stack[res.stack.size() - 1];
+					res.stack.pop_back();
+					int two = res.stack[res.stack.size() - 1];
+					res.stack.pop_back();
+					res.stack.push_back(two + one);
+					break;
+				}
+				case TokenType::star:
+				{
+					if(res.stack.size() < 2) {
+						ParsingError(m_tokens[ip], "not enought arguments for *\n");
+					}
+					int one = res.stack[res.stack.size() - 1];
+					res.stack.pop_back();
+					int two = res.stack[res.stack.size() - 1];
+					res.stack.pop_back();
+					res.stack.push_back(two * one);
+					break;
+				}
+				case TokenType::ident:
+				{
+					Macro macro;
+					bool finded = false;
+					std::string cname = m_tokens[ip].value.value();
+					for(int i = 0;i < m_macroses.size();++i) {
+						if(cname == m_macroses[i].name) {
+							finded = true;
+							macro = m_macroses[i];
+							break;
+						}
+					}
+					if(finded) {
+						eval_result m_er = eval_const_value(macro._tokens, 0, false);
+						res.stack.insert(res.stack.end(), m_er.stack.begin(), m_er.stack.end());
+						break;
+					}
+					ParsingError(m_tokens[ip], ("at constant unkown word `" + m_tokens[ip].value.value() + "`\n").c_str());
+					break;
+				}
+				default:
+				{
+					Token tok = m_tokens[ip];
+					ParsingError(tok, ("constant evaluating of " + tok_to_string(tok.type) + " its not allowed!\n").c_str());
+				}
+			}
+		}
+		if(res.stack.size() != 1 && s0) {
+			std::cout << res.stack.size() << std::endl;
+			ParsingError(m_tokens[s_ip], "invalid constant");
+		}
+		res.value = res.stack[0];
+		res.type = DataType::_int;
+		return res;
+	}
+	ops_list* parse(token_list& toks) {
 		token_list& m_tokens = toks;
 		ops_list* opsl = new std::vector<OP*>();
 		int size = m_tokens.size();
 		int real_ip = 0;
+		bool is_sproc = false;
+		std::string sproc_name = "";
 		for(int i = 0;i < size;++i, ++real_ip) {
 			switch(m_tokens[i].type) {
 				case TokenType::int_lit:
@@ -153,6 +235,7 @@ public:
 					opsl->push_back(new OP(OP_TYPE::OP_IF, m_tokens[i]));
 					break;
 				case TokenType::end:
+					is_sproc = false;
 					opsl->push_back(new OP(OP_TYPE::OP_END, m_tokens[i]));
 					break;
 				case TokenType::_else:
@@ -321,8 +404,25 @@ public:
 						}
 					}
 					if(mfinded) {
-						opsl->push_back(new OP(OP_TYPE::OP_MEM, m_tokens[i], mem.offset));
+						opsl->push_back(new OP(OP_TYPE::OP_MEM, m_tokens[i], mem.offset, (int)mem.local));
 						break;
+					} else {
+						if(is_sproc) {
+							Procedure* cp = proc_lookup_rv(m_procs, sproc_name);
+							Memory mem;
+							bool mfinded = false;
+							for(int i = 0;i < cp->local_mems.size();++i) {
+								if(cname == cp->local_mems[i].name) {
+									mfinded = true;
+									mem = cp->local_mems[i];
+									break;
+								}
+							}
+							if(mfinded) {
+								opsl->push_back(new OP(OP_TYPE::OP_MEM, m_tokens[i], mem.offset, (int)mem.local));
+								break;
+							}
+						}
 					}
 
 					std::optional<Procedure> proc = proc_lookup(m_procs, cname);
@@ -380,15 +480,20 @@ public:
 					if(m_tokens[i + 2].type != TokenType::int_lit) {
 						ParsingError(m_tokens[i+1], ("at memory definition except memory size but got " + tok_to_string(m_tokens[i + 1].type)).c_str());
 					}
-					if(m_tokens[i + 3].type != TokenType::end) {
-						ParsingError(m_tokens[i+1], "at memory definition missing end");
-					}
 					std::string mname = m_tokens[i + 1].value.value();
-					int size = std::stoi(m_tokens[i + 2].value.value());
-					i += 3;
-					Memory mem = { .name = mname , .offset = m_mem_offset };
-					m_mem_offset += size;
-					m_memories.push_back(mem);
+					eval_result er = eval_const_value(m_tokens, i + 2, true);
+					i += er.diff + 3;
+					int size = er.value;
+					Memory mem = { .name = mname , .offset = m_mem_offset, .local = is_sproc };
+					if(!is_sproc) {
+						m_mem_offset += size;
+						m_memories.push_back(mem);
+					} else {
+						Procedure* cp = proc_lookup_rv(m_procs, sproc_name);
+						mem.offset = cp->local_mem_cap;
+						cp->local_mems.push_back(mem);
+						cp->local_mem_cap += size;
+					}
 					break;
 				}
 				case TokenType::proc:
@@ -400,8 +505,10 @@ public:
 						ParsingError(m_tokens[i+1], ("at procedure definition except procedure name but got " + tok_to_string(m_tokens[i + 1].type) + "\n").c_str());
 					}
 					Token ProcDef = m_tokens[i];
+					is_sproc = true;
 					i += 1; // skip `proc` token
 					std::string pname = m_tokens[i++].value.value();
+					sproc_name = pname;
 					std::optional<Procedure> prc = proc_lookup(m_procs, pname);
 					if(prc.has_value()) {
 						std::cout << "at " << ProcDef.line << "." << ProcDef.col;
@@ -436,7 +543,7 @@ public:
 					m_tokens[i].value = pname;
 					opsl->push_back(new OP(OP_TYPE::OP_SKIP_PROC, m_tokens[i]));
 					opsl->push_back(new OP(OP_TYPE::OP_PROC, m_tokens[i]));
-					Procedure proc = {pname, _ins, _outs, ProcDef, real_ip};
+					Procedure proc = {pname, _ins, _outs, ProcDef, real_ip, 0};
 					m_procs.push_back(proc);
 					break;
 				}
