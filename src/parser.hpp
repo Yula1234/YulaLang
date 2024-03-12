@@ -6,6 +6,7 @@
 #include<vector>
 #include<filesystem>
 #include<algorithm>
+#include<variant>
 
 #include "ops.hpp"
 #include "lexer.hpp"
@@ -28,13 +29,6 @@ std::string dt_tostr(DataType dt) {
 	assert(false);
 	return "";
 }
-
-struct eval_result {
-	int value;
-	int diff;
-	DataType type;
-	std::vector<int> stack;
-};
 
 struct DataElement {
 	DataType type;
@@ -121,8 +115,18 @@ private:
 	struct Constant {
 		std::string name;
 		Token def;
-		int value;
+		std::variant<int, std::string, bool> value;
 		DataType type;
+	};
+	struct EvalConstValue {
+		DataType type;
+		std::variant<int, std::string, bool> value;
+	};
+	struct eval_result {
+		EvalConstValue value;
+		int diff;
+		DataType type;
+		std::vector<EvalConstValue> stack;
 	};
 	std::vector<std::string> m_includes;
 	std::vector<Macro> m_macroses;
@@ -142,15 +146,26 @@ public:
 		}
 		return std::nullopt;
 	}
-	int expand_const(std::string name) {
-		std::optional<Constant> cnst = const_lookup(name);
-		assert(cnst.has_value());
-		return cnst.value().value;
-	}
-	OP* compile_const(std::optional<Constant> cnst, Token tok) {
+	OP* compile_const(std::optional<Constant> cnst, Token tok, ops_list* ops) {
 		assert(cnst.has_value());
 		if(cnst.value().type == DataType::_int) {
-			return new OP(OP_TYPE::PUSH_INT, tok, cnst.value().value);
+			return new OP(OP_TYPE::PUSH_INT, tok, std::get<int>(cnst.value().value));
+		}
+		if(cnst.value().type == DataType::_bool) {
+			if(std::get<int>(cnst.value().value)) {
+				return new OP(OP_TYPE::OP_TRUE, tok);
+			} else {
+				return new OP(OP_TYPE::OP_FALSE, tok);
+			}
+		}
+		if(cnst.value().type == DataType::ptr) {
+			Constant cns = cnst.value();
+			if(holds_alternative<int>(cns.value)) {
+				ops->push_back(new OP(OP_TYPE::PUSH_INT, tok, std::get<int>(cns.value)));
+				return new OP(OP_TYPE::CAST_PTR, tok);
+			} else if(holds_alternative<std::string>(cns.value)) {
+				return new OP(OP_TYPE::PUSH_STR, { .value = std::get<std::string>(cns.value)});
+			}
 		}
 		assert(false);
 	}
@@ -163,13 +178,42 @@ public:
 		exit(1);
 	}
 	eval_result eval_const_value(token_list& m_tokens, int s_ip, bool s0) {
-		eval_result res = {0, {}};
+		eval_result res;
 		for(int ip = s_ip;m_tokens[ip].type != TokenType::end && ip < m_tokens.size();++ip) {
 			res.diff = ip - s_ip;
 			switch(m_tokens[ip].type) {
 				case TokenType::int_lit:
 				{
-					res.stack.push_back(std::stoi(m_tokens[ip].value.value()));
+					res.stack.push_back({ .type = DataType::_int, .value = std::stoi(m_tokens[ip].value.value()) });
+					break;
+				}
+				case TokenType::string_lit:
+				{
+					res.stack.push_back({ .type = DataType::ptr, .value = m_tokens[ip].value.value() });
+					break;
+				}
+				case TokenType::cast_int:
+				{
+					if(res.stack.size() < 1) {
+						ParsingError(m_tokens[ip], "not enought arguments for cast(int)\n");
+					}
+					res.stack[res.stack.size() - 1].type = DataType::_int;
+					break;
+				}
+				case TokenType::cast_bool:
+				{
+					if(res.stack.size() < 1) {
+						ParsingError(m_tokens[ip], "not enought arguments for cast(bool)\n");
+					}
+					res.stack[res.stack.size() - 1].type = DataType::_bool;
+					break;
+				}
+				case TokenType::cast_ptr:
+				{
+					if(res.stack.size() < 1) {
+						ParsingError(m_tokens[ip], "not enought arguments for cast(ptr)\n");
+					}
+					res.stack[res.stack.size() - 1].type = DataType::ptr;
 					break;
 				}
 				case TokenType::plus:
@@ -177,11 +221,11 @@ public:
 					if(res.stack.size() < 2) {
 						ParsingError(m_tokens[ip], "not enought arguments for +\n");
 					}
-					int one = res.stack[res.stack.size() - 1];
+					EvalConstValue one = res.stack[res.stack.size() - 1];
 					res.stack.pop_back();
-					int two = res.stack[res.stack.size() - 1];
+					EvalConstValue two = res.stack[res.stack.size() - 1];
 					res.stack.pop_back();
-					res.stack.push_back(two + one);
+					res.stack.push_back({ .type = DataType::_int, .value = std::get<int>(two.value) + std::get<int>(one.value) });
 					break;
 				}
 				case TokenType::star:
@@ -189,18 +233,18 @@ public:
 					if(res.stack.size() < 2) {
 						ParsingError(m_tokens[ip], "not enought arguments for *\n");
 					}
-					int one = res.stack[res.stack.size() - 1];
+					EvalConstValue one = res.stack[res.stack.size() - 1];
 					res.stack.pop_back();
-					int two = res.stack[res.stack.size() - 1];
+					EvalConstValue two = res.stack[res.stack.size() - 1];
 					res.stack.pop_back();
-					res.stack.push_back(two * one);
+					res.stack.push_back({ .type = DataType::_int, .value = std::get<int>(two.value) + std::get<int>(one.value) });
 					break;
 				}
 				case TokenType::ident:
 				{
 					std::optional<Constant> cnst = const_lookup(m_tokens[ip].value.value());
 					if(cnst.has_value()) {
-						res.stack.push_back(cnst.value().value);
+						res.stack.push_back({ .type = cnst.value().type, .value = cnst.value().value });
 						break;
 					}
 					ParsingError(m_tokens[ip], ("at constant unkown word `" + m_tokens[ip].value.value() + "`\n").c_str());
@@ -218,7 +262,7 @@ public:
 			ParsingError(m_tokens[s_ip], "invalid constant");
 		}
 		res.value = res.stack[0];
-		res.type = DataType::_int;
+		res.type = res.stack[0].type;
 		return res;
 	}
 	ops_list* parse(token_list& toks) {
@@ -450,7 +494,7 @@ public:
 
 					std::optional<Constant> cnst = const_lookup(cname);
 					if(cnst.has_value()) {
-						opsl->push_back(compile_const(cnst, m_tokens[i]));
+						opsl->push_back(compile_const(cnst, m_tokens[i], opsl));
 						break;
 					}
 
@@ -503,7 +547,7 @@ public:
 					std::string mname = m_tokens[i + 1].value.value();
 					eval_result er = eval_const_value(m_tokens, i + 2, true);
 					i += er.diff + 3;
-					int size = er.value;
+					int size = std::get<int>(er.value.value);
 					Memory mem = { .name = mname , .offset = m_mem_offset, .local = is_sproc };
 					if(!is_sproc) {
 						m_mem_offset += size;
@@ -528,8 +572,7 @@ public:
 					std::string mname = m_tokens[i + 1].value.value();
 					eval_result er = eval_const_value(m_tokens, i + 2, true);
 					i += er.diff + 3;
-					int _value = er.value;
-					Constant cnst = { .name = mname , .def = ConstDef, .value = _value, .type = er.type };
+					Constant cnst = { .name = mname , .def = ConstDef, .value = er.value.value, .type = er.type };
 					m_constants.push_back(cnst);
 					break;
 				}
