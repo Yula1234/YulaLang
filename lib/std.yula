@@ -51,7 +51,7 @@ proc malloc int -- ptr in
 	c_call(1) malloc cast(ptr)
 end
 
-proc fputs ptr int -- in
+proc fputs ptr int in
 	// excepts string on the stack
 	// [ptr:string data, int:file descriptor]
 	// fd len data fd
@@ -67,12 +67,12 @@ macro endl "\n" end
 proc inc32 ptr -- in dup @int 1 + !int end
 proc dec32 ptr -- in dup @int 1 - !int end
 
-proc ptr+ ptr int -- in
+proc ptr+ ptr int in
 	swap dup @int rot
 	+ !int drop
 end
 
-proc ptr- ptr int -- in
+proc ptr- ptr int in
 	swap dup @int rot
 	- !int drop
 end
@@ -93,7 +93,7 @@ const Str.count sizeof(ptr) offset end
 const Str.data  sizeof(ptr) offset end
 const sizeof(Str) 			reset end
 
-proc !Str ptr ptr -- in
+proc !Str ptr ptr in
 	// ins [ptr, ptr] : outs [ptr]
 	memory str_len 4 end
 	memory str_data 4 end
@@ -138,7 +138,7 @@ end
 
 // end of struct Str
 
-proc memcpy ptr ptr int -- in
+proc memcpy ptr ptr int in
 	memory src   sizeof(ptr) end
 	memory dst   sizeof(ptr) end
 	memory size  sizeof(int) end
@@ -203,14 +203,14 @@ proc utos ptr int -- int in
 	end
 end
 
-proc fputu int int -- in
+proc fputu int int in
 	memory putu_buffer 256 end
 	swap
 	putu_buffer swap utos drop
 	putu_buffer swap fputs
 end
 
-proc fputuln int int -- in
+proc fputuln int int in
 	memory putu_buffer 256 end
 	memory len sizeof(int) end
 	swap
@@ -220,10 +220,10 @@ proc fputuln int int -- in
 
 end
 
-proc putu int -- in
+proc putu int in
 	stdout fputu
 end
 
-proc putuln int -- in
+proc putuln int in
 	stdout fputuln
 end
