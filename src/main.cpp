@@ -28,6 +28,10 @@ int main(int argc, const char** argv) {
     std::vector<Token> tokens = lexer.lex();
     Parser parser;
     ops_list* opsl = parser.parse(tokens);
+    Token stok;
+    stok.line = 1;
+    stok.col = 0;
+    opsl->insert(opsl->begin(), new OP(OP_TYPE::OP_START, stok));
     typecheck_program(opsl, parser.get_procs());
     crossref_check_blocks(opsl, parser.get_procs());
     Generator generator(opsl);

@@ -85,6 +85,16 @@ struct Procedure {
 	std::vector<Memory> local_mems;
 };
 
+struct Let {
+	std::string name;
+	int loc;
+	Token def;
+	friend std::ostream& operator<<(std::ostream& out, Let& lt) {
+        out << "let `" << lt.name << "`";
+        return out;
+    }
+};
+
 std::optional<Procedure> proc_lookup(std::vector<Procedure>& m_procs, std::string& name) {
 	for(int i = 0;i < m_procs.size();++i) {
 		if(name == m_procs[i].name) {
@@ -106,6 +116,7 @@ Procedure* proc_lookup_rv(std::vector<Procedure>& m_procs, std::string& name) {
 
 class Parser {
 private:
+	int C_IOTA = 0;
 	struct Macro {
 		int line;
 		int col;
@@ -133,7 +144,9 @@ private:
 	std::vector<Memory> m_memories;
 	std::vector<Procedure> m_procs;
 	std::vector<Constant> m_constants;
+	std::vector<Let> m_lets;
 	int m_mem_offset = 0;
+	int m_bind_pos = 0;
 public:
 	int get_memsize() {
 		return m_mem_offset;
@@ -142,6 +155,14 @@ public:
 		for(int i = 0;i < m_constants.size();++i) {
 			if(m_constants[i].name == name) {
 				return m_constants[i];
+			}
+		}
+		return std::nullopt;
+	}
+	std::optional<Let> let_lookup(std::string name) {
+		for(int i = m_lets.size()-1;i > -1;--i) {
+			if(m_lets[i].name == name) {
+				return m_lets[i];
 			}
 		}
 		return std::nullopt;
@@ -250,6 +271,27 @@ public:
 					ParsingError(m_tokens[ip], ("at constant unkown word `" + m_tokens[ip].value.value() + "`\n").c_str());
 					break;
 				}
+				case TokenType::offset:
+				{
+					if(res.stack.size() < 1) {
+						ParsingError(m_tokens[ip], "not enought arguments for offset\n");
+					}
+					if(res.stack[res.stack.size() - 1].type != DataType::_int) {
+						ParsingError(m_tokens[ip], "offset except type int\n");
+					}
+					EvalConstValue val = res.stack[res.stack.size() - 1];
+					res.stack.pop_back();
+					int offs = std::get<int>(val.value);
+					res.stack.push_back({ .type = DataType::_int , .value = C_IOTA });
+					C_IOTA += offs;
+					break;
+				}
+				case TokenType::reset:
+				{
+					res.stack.push_back({ .type = DataType::_int , .value = C_IOTA });
+					C_IOTA = 0;
+					break;
+				}
 				default:
 				{
 					Token tok = m_tokens[ip];
@@ -271,7 +313,9 @@ public:
 		int size = m_tokens.size();
 		int real_ip = 0;
 		bool is_sproc = false;
+		std::vector<Token> bstack;
 		std::string sproc_name = "";
+		std::vector<int> cletsz;
 		for(int i = 0;i < size;++i, ++real_ip) {
 			switch(m_tokens[i].type) {
 				case TokenType::int_lit:
@@ -293,10 +337,22 @@ public:
 					opsl->push_back(new OP(OP_TYPE::OPER_DIV, m_tokens[i]));
 					break;
 				case TokenType::_if:
+					bstack.push_back(m_tokens[i]);
 					opsl->push_back(new OP(OP_TYPE::OP_IF, m_tokens[i]));
 					break;
 				case TokenType::end:
-					is_sproc = false;
+					if(bstack.size() == 0) {
+						is_sproc = false;
+					} else {
+						if(m_lets.size() != 0 && bstack[bstack.size() - 1].type == TokenType::let) {
+							for(int i = 0;i < cletsz[cletsz.size() - 1];++i) {
+								m_lets.erase(m_lets.end() - i);
+							}
+							cletsz.pop_back();
+							m_bind_pos = 0;
+						}
+						bstack.pop_back();
+					}
 					opsl->push_back(new OP(OP_TYPE::OP_END, m_tokens[i]));
 					break;
 				case TokenType::_else:
@@ -321,6 +377,7 @@ public:
 					opsl->push_back(new OP(OP_TYPE::OP_DO, m_tokens[i]));
 					break;
 				case TokenType::wwhile:
+					bstack.push_back(m_tokens[i]);
 					opsl->push_back(new OP(OP_TYPE::OP_WHILE, m_tokens[i]));
 					break;
 				case TokenType::drop:
@@ -498,6 +555,12 @@ public:
 						break;
 					}
 
+					std::optional<Let> let = let_lookup(cname);
+					if(let.has_value()) {
+						opsl->push_back(new OP(OP_TYPE::OP_PUSH_BIND, m_tokens[i], let.value().loc));
+						break;
+					}
+
 					ParsingError(m_tokens[i], ("unkown word `" + cname + "`").c_str());
 					break;
 				}
@@ -653,13 +716,32 @@ public:
 					opsl->push_back(new OP(OP_TYPE::OP_C_CALL, m_tokens[++i], argc));
 					break;
 				}
+				case TokenType::let:
+				{
+					Token LetDef = m_tokens[i];
+					std::vector<std::string> names;
+					i += 1;
+					while(m_tokens[i].type == TokenType::ident) {
+						names.push_back(m_tokens[i++].value.value());
+					}
+					if(m_tokens[i].type != TokenType::in) {
+						ParsingError(m_tokens[i], ("let after names bind except `in` keyword but got " + tok_to_string(m_tokens[i].type) + "\n").c_str());
+					}
+					for(int i = 0;i < names.size();++i) {
+						m_lets.push_back({ .name = names[i], .loc = ++m_bind_pos, .def = LetDef });
+					}
+					bstack.push_back(LetDef);
+					cletsz.push_back(m_bind_pos);
+					opsl->push_back(new OP(OP_TYPE::OP_BIND, LetDef, m_bind_pos));
+					break;
+				}
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}
 
 		}
 		Token ltok = { .type = TokenType::exit, .line = 0, .col = 0 };
-		opsl->push_back(new OP(OP_TYPE::OP_EXIT, ltok));
+		opsl->push_back(new OP(OP_TYPE::OP_PROG_END, ltok));
 		return opsl;
 	}
 };

@@ -55,6 +55,10 @@ enum class OP_TYPE {
 	OP_CALL,
 	OP_PROC,
 	OP_C_CALL,
+	OP_PROG_END,
+	OP_BIND,
+	OP_PUSH_BIND,
+	OP_START,
 };
 
 std::string op_to_string(OP_TYPE opt) {
@@ -153,6 +157,14 @@ std::string op_to_string(OP_TYPE opt) {
 		return "OP_PROC";
 	case OP_TYPE::OP_C_CALL:
 		return "OP_C_CALL";
+	case OP_TYPE::OP_PROG_END:
+		return "OP_PROG_END";
+	case OP_TYPE::OP_BIND:
+		return "OP_BIND";
+	case OP_TYPE::OP_PUSH_BIND:
+		return "OP_PUSH_BIND";
+	case OP_TYPE::OP_START:
+		return "OP_START";
 	}
 	assert(false);
 	return "";

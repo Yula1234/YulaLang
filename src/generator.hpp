@@ -11,6 +11,7 @@
 #include "lexer.hpp"
 #include "lexer.hpp"
 
+#define MSTACK_CAPACITY 8012
 
 bool typecheck(DataStack& ds, int length, ...) {
 	if(ds.size() < length) {
@@ -69,6 +70,9 @@ void crossref_check_blocks(ops_list* ops, std::vector<Procedure> m_procs) {
 				stack.push_back((*(ops))[ip]);
 				locs.push_back(ip);
 				break;
+			case OP_TYPE::OP_BIND:
+				stack.push_back((*ops)[ip]);
+				break;
 			case OP_TYPE::OP_DO:
 				if(stack.size() == 0) {
 					OP cur_end = *((*(ops))[ip]);
@@ -96,6 +100,7 @@ void crossref_check_blocks(ops_list* ops, std::vector<Procedure> m_procs) {
 				}
 				OP* cur = (*(ops))[ip];
 				cur->operand1 = -1;
+				int oldop1 = stack[stack.size() - 1]->operand1;
 				stack[stack.size() - 1]->operand1 = ip;
 				if(stack[stack.size() - 1]->type == OP_TYPE::OP_DO) {
 					stack.pop_back();
@@ -112,6 +117,13 @@ void crossref_check_blocks(ops_list* ops, std::vector<Procedure> m_procs) {
 							break;
 						}
 					}
+					stack.pop_back();
+					break;
+				}
+				if(stack[stack.size() - 1]->type == OP_TYPE::OP_BIND) {
+					cur->operand1 = -3;
+					stack[stack.size() - 1]->operand1 = oldop1;
+					cur->operand2 = oldop1;
 					stack.pop_back();
 					break;
 				}
@@ -165,6 +177,7 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 	scopes.push_back(new DataStack);
 	std::vector<OP*> bstack;
 	std::vector<int> ifsizes;
+	DataStack binds;
 	Procedure tcproc = {};
 	bool is_proc = false;
 	for(int ip = 0;ip < ops->size();++ip) {
@@ -333,14 +346,21 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 					DataStack& ds = last_scope(scopes);
 					if((!typecheckds(ds, tcproc.outs)) || ds.size() != tcproc.outs.size()) {
 						std::cout << "at " << tcproc.def.line << "." << tcproc.def.col;
-						std::cout << " at end of the procedure except types:\n";
+						std::cout << " at end of the procedure except types: ";
 						show_sdata(tcproc.outs);
-						std::cout << "but got: \n";
+						std::cout << "but got: ";
 						show_sdata(ds);
+						exit(1);
 					}
 					scopes.pop_back();
 					is_proc = false;
 				} else {
+					if(bstack[bstack.size() - 1]->type == OP_TYPE::OP_BIND) {
+						for(int i = 0;i <= bstack[bstack.size() - 1]->operand1;++i) {
+							binds.front() = std::move(binds.back());
+    						binds.pop_back();
+						}
+					}
 					bstack.pop_back();
 				}
 				break;
@@ -352,6 +372,7 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 					TypeError(ds, ip, ops, "if excepts types [BOOL], but got: ");
 				}
 				ds.pop_back();
+				bstack.push_back((*ops)[ip]);
 				ifsizes.push_back(ds.size());
 				break;
 			}
@@ -619,7 +640,29 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 					ds.pop_back();
 				}
 				ds.push_back({ .type = DataType::_int });
-
+				break;
+			}
+			case OP_TYPE::OP_BIND:
+			{
+				DataStack& ds = last_scope(scopes);
+				OP* curbd = (*ops)[ip];
+				int bindsz = curbd->operand1;
+				if(ds.size() < bindsz) {
+					TypeError(ds, ip, ops, "not enought arguments for let");
+				}
+				for(int i = 0;i <= ds.size();++i) {
+					binds.insert(binds.begin(), ds[ds.size() - 1]);
+					ds.pop_back();
+				}
+				bstack.push_back((*ops)[ip]);
+				break;
+			}
+			case OP_TYPE::OP_PUSH_BIND:
+			{
+				DataStack& ds = last_scope(scopes);
+				OP* curpb = (*ops)[ip];
+				ds.push_back(binds[curpb->operand1 - 1]);
+				break;
 			}
 		}
 	}
@@ -777,6 +820,14 @@ public:
 		m_output << "    pop ebp\n";
 		m_output << "    ret\n";
 	}
+	void m_gen_prog_end(int ip) {
+		m_new_addr(ip);
+		m_output << "    push 0\n";
+		m_output << "    call ExitProcess@4\n";
+		m_output << "    add esp, 4\n";
+		m_output << "    pop ebp\n";
+		m_output << "    ret\n";
+	}
 	void m_gen_if(int ip) {
 		m_new_addr(ip);
 		m_output << "    pop edx\n";
@@ -786,7 +837,7 @@ public:
 	void m_gen_end(int ip) {
 		m_new_addr(ip);
 		OP cur = m_at(ip);
-		if(cur.operand1 != -1 && cur.operand1 != -2) {
+		if(cur.operand1 != -1 && cur.operand1 != -2 && cur.operand1 != -3) {
 			m_output << "    jmp addr_" << cur.operand1 << "\n";
 			return;
 		}
@@ -813,6 +864,11 @@ public:
 			}
 			m_output << "    pop ebp\n";
 			m_output << "    ret\n";
+		}
+		else if(cur.operand1 == -3) {
+			m_output << "    mov edx, dword [msp]\n";
+			m_output << "    sub edx, " << cur.operand2 << "\n";
+			m_output << "    mov dword [msp], edx\n";
 		}
 	}
 	void m_gen_else(int ip) {
@@ -1042,6 +1098,28 @@ public:
 		}
 		m_output << "    push eax\n";
 	}
+	void m_gen_bind(int ip) {
+		m_new_addr(ip);
+		OP cur = m_at(ip);
+		m_output << "    mov edx, dword [msp]\n";
+		m_output << "    add edx, " << cur.operand1 * 4 << "\n";
+		m_output << "    mov dword [msp], edx\n";
+		for(int i = cur.operand1 - 1;i > -1;--i) {
+			m_output << "    pop ecx\n";
+			m_output << "    mov dword [mstack+edx-" << i*4 << "], ecx\n";
+		}
+	}
+	void m_gen_start(int ip) {
+		m_new_addr(ip);
+		m_output << "    mov dword [msp], 0\n";
+	}
+	void m_gen_push_bind(int ip) {
+		m_new_addr(ip);
+		OP cur = m_at(ip);
+		m_output << "    mov edx, dword [msp]\n";
+		m_output << "    sub edx, " << (cur.operand1 - 1) * 4 << "\n";
+		m_output << "    push dword [mstack+edx]\n";
+	}
 	std::string generate() {
 		m_output << "section .text\n";
 		m_output << "\n";
@@ -1077,6 +1155,9 @@ public:
 					break;
 				case OP_TYPE::OP_EXIT:
 					m_gen_exit(ip);
+					break;
+				case OP_TYPE::OP_PROG_END:
+					m_gen_prog_end(ip);
 					break;
 				case OP_TYPE::OP_ELSE:
 					m_gen_else(ip);
@@ -1180,6 +1261,15 @@ public:
 				case OP_TYPE::OP_C_CALL:
 					m_gen_c_call(ip);
 					break;
+				case OP_TYPE::OP_BIND:
+					m_gen_bind(ip);
+					break;
+				case OP_TYPE::OP_START:
+					m_gen_start(ip);
+					break;
+				case OP_TYPE::OP_PUSH_BIND:
+					m_gen_push_bind(ip);
+					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);
 			}
@@ -1191,6 +1281,8 @@ public:
 		m_output << "\n";
 		m_output << "\nsection .bss\n";
 		m_output << "    mem: resb " << m_memsize << "\n";
+		m_output << "    mstack: resb " << MSTACK_CAPACITY << "\n";
+		m_output << "    msp: resd 1\n";
 		m_output << "\nsection .data\n";
 		m_output << "    numfmt: db \"%d\", 0x0\n";
 		for(int i = 0;i < (int)m_strings.size();++i) {
