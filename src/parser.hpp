@@ -89,6 +89,7 @@ struct Let {
 	std::string name;
 	int loc;
 	Token def;
+	int arrl;
 	friend std::ostream& operator<<(std::ostream& out, Let& lt) {
         out << "let `" << lt.name << "`";
         return out;
@@ -344,12 +345,12 @@ public:
 					if(bstack.size() == 0) {
 						is_sproc = false;
 					} else {
-						if(m_lets.size() != 0 && bstack[bstack.size() - 1].type == TokenType::let) {
+						if(cletsz.size() != 0 && bstack[bstack.size() - 1].type == TokenType::let) {
 							for(int i = 0;i < cletsz[cletsz.size() - 1];++i) {
 								m_lets.erase(m_lets.end() - i);
 							}
+							m_bind_pos -= cletsz[cletsz.size() - 1];
 							cletsz.pop_back();
-							m_bind_pos = 0;
 						}
 						bstack.pop_back();
 					}
@@ -557,7 +558,7 @@ public:
 
 					std::optional<Let> let = let_lookup(cname);
 					if(let.has_value()) {
-						opsl->push_back(new OP(OP_TYPE::OP_PUSH_BIND, m_tokens[i], let.value().loc));
+						opsl->push_back(new OP(OP_TYPE::OP_PUSH_BIND, m_tokens[i], let.value().loc, let.value().arrl));
 						break;
 					}
 
@@ -661,20 +662,24 @@ public:
 					}
 					DataStack _outs;
 					DataStack _ins;
-					while(m_tokens[i].type != TokenType::bake) {
-						if(m_tokens[i].type == TokenType::end || m_tokens[i].type == TokenType::in) {
-							ParsingError(ProcDef, "except -- after proc definition with types\n");
+					while(m_tokens[i].type != TokenType::bake && m_tokens[i].type != TokenType::in) {
+						if(m_tokens[i].type == TokenType::end) {
+							ParsingError(ProcDef, "except `--` or `in` after proc definition with types\n");
 						}
 						_ins.push_back(type_to_dt(m_tokens[i].type));
 						i += 1;
 					}
-					i += 1;
-					while(m_tokens[i].type != TokenType::in) {
-						if(m_tokens[i].type == TokenType::end) {
-							ParsingError(ProcDef, "except `in` after proc definition\n");
-						}
-						_outs.push_back(type_to_dt(m_tokens[i].type));
+					bool no_outs = false;
+					no_outs = m_tokens[i].type == TokenType::in;
+					if(!no_outs) {
 						i += 1;
+						while(m_tokens[i].type != TokenType::in) {
+							if(m_tokens[i].type == TokenType::end) {
+								ParsingError(ProcDef, "except `in` after proc definition\n");
+							}
+							_outs.push_back(type_to_dt(m_tokens[i].type));
+							i += 1;
+						}
 					}
 					assert(m_tokens[i].type == TokenType::in);
 					if(_outs.size() > 3) {
@@ -719,6 +724,9 @@ public:
 				case TokenType::let:
 				{
 					Token LetDef = m_tokens[i];
+					if(cletsz.size() != 0) {
+						ParsingError(LetDef, "nested `let` is not supported yet\n");
+					}
 					std::vector<std::string> names;
 					i += 1;
 					while(m_tokens[i].type == TokenType::ident) {
@@ -727,12 +735,17 @@ public:
 					if(m_tokens[i].type != TokenType::in) {
 						ParsingError(m_tokens[i], ("let after names bind except `in` keyword but got " + tok_to_string(m_tokens[i].type) + "\n").c_str());
 					}
+					int prev_pos = m_bind_pos;
+					int offs = 0;
 					for(int i = 0;i < names.size();++i) {
-						m_lets.push_back({ .name = names[i], .loc = ++m_bind_pos, .def = LetDef });
+						offs = m_bind_pos++;
+						offs = offs - prev_pos;
+						m_lets.push_back({ .name = names[i], .loc = offs, .def = LetDef , .arrl = (int)m_lets.size() });
 					}
+					prev_pos = m_bind_pos - prev_pos;
 					bstack.push_back(LetDef);
-					cletsz.push_back(m_bind_pos);
-					opsl->push_back(new OP(OP_TYPE::OP_BIND, LetDef, m_bind_pos));
+					cletsz.push_back(prev_pos);
+					opsl->push_back(new OP(OP_TYPE::OP_BIND, LetDef, prev_pos));
 					break;
 				}
 				default:

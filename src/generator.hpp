@@ -178,6 +178,7 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 	std::vector<OP*> bstack;
 	std::vector<int> ifsizes;
 	DataStack binds;
+	std::vector<int> bsizes;
 	Procedure tcproc = {};
 	bool is_proc = false;
 	for(int ip = 0;ip < ops->size();++ip) {
@@ -360,6 +361,7 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 							binds.front() = std::move(binds.back());
     						binds.pop_back();
 						}
+						bsizes.pop_back();
 					}
 					bstack.pop_back();
 				}
@@ -650,10 +652,11 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 				if(ds.size() < bindsz) {
 					TypeError(ds, ip, ops, "not enought arguments for let");
 				}
-				for(int i = 0;i <= ds.size();++i) {
+				for(int i = 0;i < bindsz;++i) {
 					binds.insert(binds.begin(), ds[ds.size() - 1]);
 					ds.pop_back();
 				}
+				bsizes.push_back(bindsz);
 				bstack.push_back((*ops)[ip]);
 				break;
 			}
@@ -661,7 +664,8 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 			{
 				DataStack& ds = last_scope(scopes);
 				OP* curpb = (*ops)[ip];
-				ds.push_back(binds[curpb->operand1 - 1]);
+				int offset = curpb->operand1;
+				ds.push_back(binds[offset]);
 				break;
 			}
 		}
@@ -685,6 +689,7 @@ private:
 	std::vector<String> m_strings;
 	std::vector<Procedure> m_procs;
 	int m_memsize = 96;
+	int m_bind_nest = 0;
 public:
 	explicit Generator(ops_list* _ops) {
 		m_ops = _ops;
@@ -822,6 +827,8 @@ public:
 	}
 	void m_gen_prog_end(int ip) {
 		m_new_addr(ip);
+		Procedure mproc = proc_lookup(m_procs, "main").value();
+		m_output << "    call addr_" << mproc.ip << "\n";
 		m_output << "    push 0\n";
 		m_output << "    call ExitProcess@4\n";
 		m_output << "    add esp, 4\n";
@@ -866,8 +873,9 @@ public:
 			m_output << "    ret\n";
 		}
 		else if(cur.operand1 == -3) {
+			m_bind_nest -= 1;
 			m_output << "    mov edx, dword [msp]\n";
-			m_output << "    sub edx, " << cur.operand2 << "\n";
+			m_output << "    sub edx, " << cur.operand2 * 4 << "\n";
 			m_output << "    mov dword [msp], edx\n";
 		}
 	}
@@ -1101,6 +1109,7 @@ public:
 	void m_gen_bind(int ip) {
 		m_new_addr(ip);
 		OP cur = m_at(ip);
+		m_bind_nest += 1;
 		m_output << "    mov edx, dword [msp]\n";
 		m_output << "    add edx, " << cur.operand1 * 4 << "\n";
 		m_output << "    mov dword [msp], edx\n";
@@ -1111,13 +1120,21 @@ public:
 	}
 	void m_gen_start(int ip) {
 		m_new_addr(ip);
+		std::optional<Procedure> mproc = proc_lookup(m_procs, "main");
+		if(!mproc.has_value()) {
+			std::cout << "ERROR: `main` procedure not found!\n";
+			exit(1);
+		}
 		m_output << "    mov dword [msp], 0\n";
+		int OFFSET_END = m_ops->size() - 1;
+		m_output << "    jmp addr_" << OFFSET_END << "\n";
 	}
 	void m_gen_push_bind(int ip) {
 		m_new_addr(ip);
 		OP cur = m_at(ip);
 		m_output << "    mov edx, dword [msp]\n";
-		m_output << "    sub edx, " << (cur.operand1 - 1) * 4 << "\n";
+		int offset = cur.operand1 * 4;
+		m_output << "    sub edx, " << offset << "\n";
 		m_output << "    push dword [mstack+edx]\n";
 	}
 	std::string generate() {
