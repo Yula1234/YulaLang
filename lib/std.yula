@@ -1,14 +1,26 @@
+
+// standart streams
 const stdin 0 end
 const stdout 1 end
 const stderr 2 end
 
+// exit cods
 const EXIT_SUCCESS 0 end
 const EXIT_FAILURE 1 end
 
+
+// symbols constants
 const SPACE 32 end
+const SYMBOL_0 48 end
+
+// sizeofs
+const sizeof(int)  4 end
+const sizeof(bool) 4 end
+const sizeof(ptr)  4 end
 
 macro NULL 0 cast(ptr) end
 
+// read & write wrappers
 proc @ptr ptr -- ptr in @32 cast(ptr) end
 proc !ptr ptr ptr -- in cast(int) !32 end
 
@@ -18,7 +30,7 @@ proc !bool ptr bool -- in cast(int) !8 end
 macro @int @32 end
 macro !int !32 end
 
-macro ptr_diff
+proc ptr_diff ptr ptr -- int in
   swap cast(int)
   swap cast(int)
   -
@@ -30,6 +42,7 @@ proc strlen ptr -- int in
   swap ptr_diff
 end
 
+// C functions wrappers
 proc write int ptr int -- int in
 	c_call(3) write
 end
@@ -51,12 +64,6 @@ proc eputs ptr -- in stderr fputs end
 
 macro endl "\n" end
 
-macro malloc4 4 malloc end
-
-macro malloc2 2 malloc end
-
-macro malloc1 1 malloc end
-
 proc inc32 ptr -- in dup @int 1 + !int end
 proc dec32 ptr -- in dup @int 1 - !int end
 
@@ -75,29 +82,21 @@ macro todo!
 	EXIT_FAILURE exit
 end
 
-const sizeof(int)  4 end
-const sizeof(bool) 4 end
-const sizeof(ptr)  4 end
-
 proc cstr_to_str ptr -- int ptr in
 	// ins [ptr] : outs[int, ptr]
 	dup strlen swap
 end
 
-proc puti int -- in print endl puts end
-
-
 // struct Str
 
-const Str.count 0 end
-const Str.data sizeof(ptr) end
-const sizeof(Str) Str.data 4 + end
-
-memory str_len 4 end
-memory str_data 4 end
+const Str.count sizeof(ptr) offset end
+const Str.data  sizeof(ptr) offset end
+const sizeof(Str) 			reset end
 
 proc !Str ptr ptr -- in
 	// ins [ptr, ptr] : outs [ptr]
+	memory str_len 4 end
+	memory str_data 4 end
 	swap cstr_to_str
 	str_data swap !ptr
 	str_len swap !int
@@ -138,3 +137,93 @@ proc str_cut ptr -- ptr in
 end
 
 // end of struct Str
+
+proc memcpy ptr ptr int -- in
+	memory src   sizeof(ptr) end
+	memory dst   sizeof(ptr) end
+	memory size  sizeof(int) end
+	// src dst size
+	size swap !int
+	dst swap !ptr
+	src swap !ptr
+	// i 
+	0 while dup size @int = not do
+		dst @ptr over +
+		@8 over src @ptr
+		swap + swap !8
+		1 +
+	end drop
+end
+
+proc treverce_utos ptr int -- int in
+	memory buffer sizeof(ptr) end
+
+	swap buffer swap !ptr
+	dup 0 = if
+		buffer @ptr SYMBOL_0 !8
+		buffer @ptr 1 + 0 !8
+	end
+	0 swap
+	while dup 0 = not do
+		dup SYMBOL_0 swap 10 % +
+		buffer @ptr swap !8
+		10 / swap 1 + swap
+		buffer @ptr 1 + buffer swap cast(int) !32
+	end
+	drop 1 -
+	dup
+	buffer @ptr swap + 0 !8
+	1 +
+end
+
+proc utos ptr int -- int in
+	memory buffer 256 end
+	memory userbuf  sizeof(ptr) end
+	memory strsize  sizeof(int) end
+	memory offs     sizeof(int) end
+	memory offs2    sizeof(int) end
+	
+	over userbuf swap !ptr
+	treverce_utos strsize swap !int
+
+	offs 0 !32
+	buffer userbuf @ptr strsize
+	@int 1 + memcpy
+
+	offs2 strsize @int 1 - !int
+
+	// i
+	0 while dup strsize @int < do
+		userbuf @ptr offs @int +
+		buffer offs2 @int + 1
+		memcpy
+		offs inc32
+		offs2 dec32
+		1 +
+	end
+end
+
+proc fputu int int -- in
+	memory putu_buffer 256 end
+	swap
+	putu_buffer swap utos drop
+	putu_buffer swap fputs
+end
+
+proc fputuln int int -- in
+	memory putu_buffer 256 end
+	memory len sizeof(int) end
+	swap
+	putu_buffer swap utos len swap !int
+	putu_buffer len @int + 10 !int
+	putu_buffer swap fputs
+
+end
+
+proc putu int -- in
+	stdout fputu
+end
+
+proc putuln int -- in
+	stdout fputuln
+end

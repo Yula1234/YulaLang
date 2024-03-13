@@ -95,7 +95,7 @@ struct Let {
     }
 };
 
-std::optional<Procedure> proc_lookup(std::vector<Procedure>& m_procs, std::string& name) {
+std::optional<Procedure> proc_lookup(std::vector<Procedure>& m_procs, std::string name) {
 	for(int i = 0;i < m_procs.size();++i) {
 		if(name == m_procs[i].name) {
 			return m_procs[i];
@@ -104,7 +104,7 @@ std::optional<Procedure> proc_lookup(std::vector<Procedure>& m_procs, std::strin
 	return std::nullopt;
 }
 
-Procedure* proc_lookup_rv(std::vector<Procedure>& m_procs, std::string& name) {
+Procedure* proc_lookup_rv(std::vector<Procedure>& m_procs, std::string name) {
 	for(int i = 0;i < m_procs.size();++i) {
 		if(name == m_procs[i].name) {
 			return &(m_procs[i]);
