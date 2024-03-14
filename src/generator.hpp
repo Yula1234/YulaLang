@@ -70,9 +70,6 @@ void crossref_check_blocks(ops_list* ops, std::vector<Procedure> m_procs) {
 				stack.push_back((*(ops))[ip]);
 				locs.push_back(ip);
 				break;
-			case OP_TYPE::OP_BIND:
-				stack.push_back((*ops)[ip]);
-				break;
 			case OP_TYPE::OP_DO:
 				if(stack.size() == 0) {
 					OP cur_end = *((*(ops))[ip]);
@@ -117,13 +114,6 @@ void crossref_check_blocks(ops_list* ops, std::vector<Procedure> m_procs) {
 							break;
 						}
 					}
-					stack.pop_back();
-					break;
-				}
-				if(stack[stack.size() - 1]->type == OP_TYPE::OP_BIND) {
-					cur->operand1 = -3;
-					stack[stack.size() - 1]->operand1 = oldop1;
-					cur->operand2 = oldop1;
 					stack.pop_back();
 					break;
 				}
@@ -177,8 +167,6 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 	scopes.push_back(new DataStack);
 	std::vector<OP*> bstack;
 	std::vector<int> ifsizes;
-	DataStack binds;
-	std::vector<int> bsizes;
 	Procedure tcproc = {};
 	bool is_proc = false;
 	for(int ip = 0;ip < ops->size();++ip) {
@@ -356,13 +344,6 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 					scopes.pop_back();
 					is_proc = false;
 				} else {
-					if(bstack[bstack.size() - 1]->type == OP_TYPE::OP_BIND) {
-						for(int i = 0;i <= bstack[bstack.size() - 1]->operand1;++i) {
-							binds.front() = std::move(binds.back());
-    						binds.pop_back();
-						}
-						bsizes.pop_back();
-					}
 					bstack.pop_back();
 				}
 				break;
@@ -648,24 +629,18 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 			{
 				DataStack& ds = last_scope(scopes);
 				OP* curbd = (*ops)[ip];
-				int bindsz = curbd->operand1;
-				if(ds.size() < bindsz) {
-					TypeError(ds, ip, ops, "not enought arguments for let");
+				DataType type = (DataType)curbd->operand1;
+				if(!typecheck(ds, 1, type)) {
+					TypeError(ds, ip, ops, ("let except type " + dt_tostr(type)).c_str());
 				}
-				for(int i = 0;i < bindsz;++i) {
-					binds.insert(binds.begin(), ds[ds.size() - 1]);
-					ds.pop_back();
-				}
-				bsizes.push_back(bindsz);
-				bstack.push_back((*ops)[ip]);
+				ds.pop_back();
 				break;
 			}
 			case OP_TYPE::OP_PUSH_BIND:
 			{
 				DataStack& ds = last_scope(scopes);
 				OP* curpb = (*ops)[ip];
-				int offset = curpb->operand1;
-				ds.push_back(binds[offset]);
+				ds.push_back({ .type = (DataType)curpb->operand2 });
 				break;
 			}
 		}
@@ -871,12 +846,6 @@ public:
 			}
 			m_output << "    pop ebp\n";
 			m_output << "    ret\n";
-		}
-		else if(cur.operand1 == -3) {
-			m_bind_nest -= 1;
-			m_output << "    mov edx, dword [msp]\n";
-			m_output << "    sub edx, " << cur.operand2 * 4 << "\n";
-			m_output << "    mov dword [msp], edx\n";
 		}
 	}
 	void m_gen_else(int ip) {
@@ -1108,15 +1077,8 @@ public:
 	}
 	void m_gen_bind(int ip) {
 		m_new_addr(ip);
-		OP cur = m_at(ip);
-		m_bind_nest += 1;
-		m_output << "    mov edx, dword [msp]\n";
-		m_output << "    add edx, " << cur.operand1 * 4 << "\n";
-		m_output << "    mov dword [msp], edx\n";
-		for(int i = cur.operand1 - 1;i > -1;--i) {
-			m_output << "    pop ecx\n";
-			m_output << "    mov dword [mstack+edx-" << i*4 << "], ecx\n";
-		}
+		m_output << "    pop ebx\n";
+		m_output << "    mov dword [mstack+" << m_at(ip).operand2 * 4 << "], ebx\n";
 	}
 	void m_gen_start(int ip) {
 		m_new_addr(ip);
@@ -1125,17 +1087,14 @@ public:
 			std::cout << "ERROR: `main` procedure not found!\n";
 			exit(1);
 		}
-		m_output << "    mov dword [msp], 0\n";
 		int OFFSET_END = m_ops->size() - 1;
 		m_output << "    jmp addr_" << OFFSET_END << "\n";
 	}
 	void m_gen_push_bind(int ip) {
 		m_new_addr(ip);
 		OP cur = m_at(ip);
-		m_output << "    mov edx, dword [msp]\n";
 		int offset = cur.operand1 * 4;
-		m_output << "    sub edx, " << offset << "\n";
-		m_output << "    push dword [mstack+edx]\n";
+		m_output << "    push dword [mstack+" << offset << "]\n";
 	}
 	std::string generate() {
 		m_output << "section .text\n";
