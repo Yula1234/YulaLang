@@ -1,0 +1,20 @@
+include "std"
+
+const O_RDONLY   0 end
+const O_WRONLY   1 end
+const O_RDWR     2 end
+const O_CREAT    64 end
+const O_TRUNC    512 end
+const O_NONBLOCK 2048 end
+
+proc open ptr int -- int in
+	swap c_call(2) open
+end
+
+proc close int in
+	c_call(1) close drop
+end
+
+proc read int ptr int -- int in
+	c_call(3) read
+end
