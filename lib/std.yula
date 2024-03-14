@@ -235,7 +235,7 @@ proc streq ptr ptr -- bool in
 	flag 1 !32
 	s1 strlen s2 strlen
 	= not if false return end
-	0 while dup s1 swap + @8 0 = not do
+	0 while dup s1 swap + @8 0 = not flag @32 cast(bool) and do
 		// i ch1 chr2
 		s1 over +
 		s2 rot +
