@@ -227,3 +227,22 @@ end
 proc putuln int in
 	stdout fputuln
 end
+
+proc streq ptr ptr -- bool in
+	memory flag sizeof(int) end
+	let s2 ptr end
+	let s1 ptr end
+	flag 1 !32
+	s1 strlen s2 strlen
+	= not if false return end
+	0 while dup s1 swap + @8 0 = not do
+		// i ch1 chr2
+		s1 over +
+		s2 rot +
+		@8 swap @8 = not if
+			flag 0 !32
+		end
+		1 +
+	end
+	drop flag @32 cast(bool)
+end
