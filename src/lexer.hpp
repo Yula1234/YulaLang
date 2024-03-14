@@ -66,6 +66,7 @@ enum class TokenType {
     offset,
     reset,
     let,
+    _return,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -189,6 +190,8 @@ std::string tok_to_string(const TokenType type)
         return "`reset`";
     case TokenType::let:
         return "`let`";
+    case TokenType::_return:
+        return "`return`";
     }
     assert(false);
 }
@@ -437,6 +440,10 @@ public:
                 }
                 else if(buf == "let") {
                     tokens.push_back({ .type = TokenType::let, .line = line_count, .col = m_col - (int)buf.size() });
+                    buf.clear();
+                }
+                else if(buf == "return") {
+                    tokens.push_back({ .type = TokenType::_return, .line = line_count, .col = m_col - (int)buf.size() });
                     buf.clear();
                 }
                 else {

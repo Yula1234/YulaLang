@@ -59,6 +59,7 @@ enum class OP_TYPE {
 	OP_BIND,
 	OP_PUSH_BIND,
 	OP_START,
+	OP_RETURN,
 };
 
 std::string op_to_string(OP_TYPE opt) {
@@ -165,6 +166,8 @@ std::string op_to_string(OP_TYPE opt) {
 		return "OP_PUSH_BIND";
 	case OP_TYPE::OP_START:
 		return "OP_START";
+	case OP_TYPE::OP_RETURN:
+		return "OP_RETURN";
 	}
 	assert(false);
 	return "";

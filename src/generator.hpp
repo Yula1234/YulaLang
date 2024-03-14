@@ -643,6 +643,23 @@ void typecheck_program(ops_list* ops, std::vector<Procedure> m_procs) {
 				ds.push_back({ .type = (DataType)curpb->operand2 });
 				break;
 			}
+			case OP_TYPE::OP_RETURN:
+			{
+				DataStack& ds = last_scope(scopes);
+				Token tok = (*ops)[ip]->tok;
+				if((!typecheckds(ds, tcproc.outs)) || ds.size() != tcproc.outs.size()) {
+					std::cout << "at " << tok.line << "." << tok.col;
+					std::cout << " at return of the procedure except types: ";
+					show_sdata(tcproc.outs);
+					std::cout << "but got: ";
+					show_sdata(ds);
+					exit(1);
+				}
+				for(int i = 0;i < tcproc.outs.size();++i) {
+					ds.pop_back();
+				}
+				break;
+			}
 		}
 	}
 	DataStack& ds = last_scope(scopes);
@@ -1096,6 +1113,31 @@ public:
 		int offset = cur.operand1 * 4;
 		m_output << "    push dword [mstack+" << offset << "]\n";
 	}
+	void m_gen_return(int ip) {
+		m_new_addr(ip);
+		Procedure proc_ret = proc_lookup(m_procs, m_at(ip).tok.value.value()).value();
+		int rsize = proc_ret.outs.size();
+		if(rsize == 1) {
+			m_output << "    pop eax\n";
+		}
+		else if(rsize == 0) {}
+		else if(rsize == 2) {
+			m_output << "    pop eax\n";
+			m_output << "    pop ebx\n";
+		}
+		else if(rsize == 3) {
+			m_output << "    pop eax\n";
+			m_output << "    pop ebx\n";
+			m_output << "    pop edx\n";
+		} else {
+			assert(false); // unreacheable
+		}
+		if(proc_ret.local_mem_cap != 0) {
+			m_output << "    add esp, " << proc_ret.local_mem_cap << "\n";
+		}
+		m_output << "    pop ebp\n";
+		m_output << "    ret\n";
+	}
 	std::string generate() {
 		m_output << "section .text\n";
 		m_output << "\n";
@@ -1245,6 +1287,9 @@ public:
 					break;
 				case OP_TYPE::OP_PUSH_BIND:
 					m_gen_push_bind(ip);
+					break;
+				case OP_TYPE::OP_RETURN:
+					m_gen_return(ip);
 					break;
 				default:
 					GeneratorError("unkown op_type `" + op_to_string(m_at(ip).type) + "`", ip);

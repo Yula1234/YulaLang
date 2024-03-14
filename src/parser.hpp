@@ -743,6 +743,15 @@ public:
 					opsl->push_back(new OP(OP_TYPE::OP_BIND, LetDef, (int)clet.type, m_bind_pos - 1));
 					break;
 				}
+				case TokenType::_return:
+				{
+					if(!is_sproc) {
+						ParsingError(m_tokens[i], "can't use return without procedure\n");
+					}
+					m_tokens[i].value = sproc_name;
+					opsl->push_back(new OP(OP_TYPE::OP_RETURN, m_tokens[i]));
+					break;
+				}
 				default:
 					ParsingError(m_tokens[i], "Invalid token type");
 			}
